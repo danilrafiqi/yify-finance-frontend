@@ -4,7 +4,7 @@ import { useNFTStore } from '../stores/nftStore'
 
 const NFTGallery: React.FC = () => {
   const { isConnected } = useWalletStore()
-  const { nfts, getAvailableNFTs, getDepositedNFTs } = useNFTStore()
+  const { nfts } = useNFTStore()
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'available' | 'deposited'>('all')
 

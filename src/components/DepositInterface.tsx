@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNFTStore, type NFT } from '../stores/nftStore'
+import { useNFTStore } from '../stores/nftStore'
 import { usePositionStore } from '../stores/positionStore'
 import { useTransactionStore } from '../stores/transactionStore'
 
@@ -195,7 +195,7 @@ const DepositInterface: React.FC = () => {
                   return (
                     <li key={nftId} className="flex justify-between text-sm">
                       <span>{nft?.name}</span>
-                      <span>${nft?.value}</span>
+                      <span>${nft?.floorPrice}</span>
                     </li>
                   )
                 })}

@@ -40,8 +40,8 @@ function AppContent() {
 
     // Simulate weekly epoch for veNFT (every 30 seconds for demo)
     const weeklyInterval = setInterval(() => {
-      simulateYieldGrowth('veNFT') // Weekly yield for veNFT
-      simulateAutoRepayment('veNFT') // Weekly auto-repayment
+      simulateYieldGrowth('veAero') // Weekly yield for veNFT
+      simulateAutoRepayment('veAero') // Weekly auto-repayment
     }, 30000) // 30 seconds = 1 week in demo time
 
     // Simulate monthly epoch for RWA NFTs (every 2 minutes for demo)

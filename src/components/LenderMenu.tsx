@@ -21,9 +21,10 @@ const LenderMenu: React.FC = () => {
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
 
   const { register: registerDeposit, handleSubmit: handleSubmitDeposit, formState: { errors: errorsDeposit }, setValue: setValueDeposit } = useForm<DepositFormData>()
-  const { register: registerWithdraw, handleSubmit: handleSubmitWithdraw, formState: { errors: errorsWithdraw }, setValue: setValueWithdraw } = useForm<WithdrawFormData>()
+  const { register: registerWithdraw, handleSubmit: handleSubmitWithdraw, setValue: setValueWithdraw } = useForm<WithdrawFormData>()
 
-  const { balance = 0, updateBalance } = useWalletStore()
+  const { currentWallet, updateBalance } = useWalletStore()
+  const balance = currentWallet?.balance || 0
   const { addTransaction, getRecentTransactions } = useTransactionStore()
 
   // Lending pool - only USDC

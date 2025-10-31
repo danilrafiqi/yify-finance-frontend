@@ -321,7 +321,7 @@ export const usePositionStore = create<PositionState>()(
             if (pos.borrowedAmount > 0 && pos.yieldEarned > 0) {
               // Check if position contains matching NFT type
               const hasMatchingNFTs = pos.collateralNFTs.some(nftName => {
-                if (nftType === 'veNFT') return nftName.includes('veNFT') || nftName.includes('veAero')
+                if (nftType === 'veAero') return nftName.includes('veNFT') || nftName.includes('veAero')
                 if (nftType === 'rwa') return !nftName.includes('veAero')
                 return false
               })

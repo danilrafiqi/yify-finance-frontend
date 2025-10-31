@@ -8,13 +8,14 @@ import { useWalletStore } from '../stores/walletStore'
 interface PositionAction {
   type: 'add_collateral' | 'repay_partial' | 'withdraw_collateral' | 'close_position'
   amount?: number
+  confirmAction?: boolean
 }
 
 const PositionManagement: React.FC = () => {
   const [selectedAction, setSelectedAction] = useState<PositionAction['type']>('add_collateral')
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<PositionAction>()
 
-  const { positions, updatePositionBorrow, repayPosition, closePosition } = usePositionStore()
+  const { positions, repayPosition, closePosition } = usePositionStore()
   const { getNFTsByPosition, withdrawNFTs } = useNFTStore()
   const { addTransaction } = useTransactionStore()
   const { updateBalance } = useWalletStore()
@@ -50,12 +51,6 @@ const PositionManagement: React.FC = () => {
     }
   })() : null
 
-  const getHealthFactorColor = (factor: number) => {
-    if (factor >= 2.0) return 'text-green-600'
-    if (factor >= 1.5) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
   const onSubmit = async (data: PositionAction) => {
     if (!position) {
       alert('❌ No active position found.')
@@ -74,13 +69,13 @@ const PositionManagement: React.FC = () => {
 
         case 'repay_partial':
           if (!data.amount) break
-          repayPosition(position.id, data.amount)
+          repayPosition(position!.id, data.amount)
           updateBalance(-data.amount)
           addTransaction({
             type: 'repay',
             amount: data.amount,
             token: 'USDC',
-            positionId: position.id,
+            positionId: position!.id,
             status: 'confirmed',
             description: `Partial repayment of ${data.amount} USDC`
           })
@@ -93,22 +88,22 @@ const PositionManagement: React.FC = () => {
           break
 
         case 'close_position':
-          repayPosition(position.id, position.borrowedAmount)
-          updateBalance(-position.borrowedAmount)
-          closePosition(position.id)
-          withdrawNFTs(position.collateralNFTs.map(name => {
+          repayPosition(position!.id, position!.borrowedAmount)
+          updateBalance(-position!.borrowedAmount)
+          closePosition(position!.id)
+          withdrawNFTs(position!.collateralNFTs.map(name => {
             // Find NFT by name (this is simplified)
-            const nft = getNFTsByPosition(position.id).find(n => n.name === name)
+            const nft = getNFTsByPosition(position!.id).find(n => n.name === name)
             return nft?.id || ''
           }).filter(id => id))
 
           addTransaction({
             type: 'repay',
-            amount: position.borrowedAmount,
+            amount: position!.borrowedAmount,
             token: 'USDC',
-            positionId: position.id,
+            positionId: position!.id,
             status: 'confirmed',
-            description: `Closed position - full repayment of ${position.borrowedAmount} USDC`
+            description: `Closed position - full repayment of ${position!.borrowedAmount} USDC`
           })
           alert(`✅ Position closed! NFTs returned to wallet.`)
           break
@@ -145,26 +140,26 @@ const PositionManagement: React.FC = () => {
                 {...register('amount', {
                   required: 'Amount is required',
                   min: { value: 1, message: 'Minimum amount is 1 USDC' },
-                  max: { value: position.borrowedAmount, message: 'Cannot repay more than borrowed' }
+                  max: { value: position!.borrowedAmount, message: 'Cannot repay more than borrowed' }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter repay amount"
               />
               {errors.amount && (
-                <p className="text-red-600 text-sm mt-1">{errors.amount.message}</p>
+                <p className="text-red-600 text-sm mt-1">{errors.amount.message || 'Invalid amount'}</p>
               )}
             </div>
             <div className="flex space-x-2">
               <button
                 type="button"
-                onClick={() => setValue('amount', position.borrowedAmount)}
+                onClick={() => setValue('amount', position!.borrowedAmount)}
                 className="px-3 py-1 text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
               >
                 Repay All
               </button>
               <button
                 type="button"
-                onClick={() => setValue('amount', Math.floor(position.borrowedAmount / 2))}
+                onClick={() => setValue('amount', Math.floor(position!.borrowedAmount / 2))}
                 className="px-3 py-1 text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
               >
                 Half
@@ -190,7 +185,7 @@ const PositionManagement: React.FC = () => {
                 {...register('amount', {
                   required: 'Amount is required',
                   min: { value: 1, message: 'Minimum amount is $1' },
-                  max: { value: position.maxCollateralWithdraw, message: 'Amount exceeds safe withdrawal limit' }
+                  max: { value: position!.maxCollateralWithdraw, message: 'Amount exceeds safe withdrawal limit' }
                 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter withdraw amount"
@@ -200,7 +195,7 @@ const PositionManagement: React.FC = () => {
               )}
             </div>
             <p className="text-sm text-gray-600">
-              Max safe withdrawal: ${position.maxCollateralWithdraw}
+              Max safe withdrawal: ${position!.maxCollateralWithdraw}
             </p>
           </div>
         )
@@ -210,17 +205,17 @@ const PositionManagement: React.FC = () => {
           <div className="space-y-4">
             <div className="bg-red-50 p-3 rounded-lg">
               <p className="text-red-800 text-sm">
-                🚨 This will repay your full debt (${position.borrowedAmount}) and unlock your NFTs.
+                🚨 This will repay your full debt (${position!.borrowedAmount}) and unlock your NFTs.
                 Make sure you have enough USDC in your wallet.
               </p>
             </div>
             <div className="bg-gray-50 p-3 rounded-lg">
               <p className="text-sm text-gray-700">
-                <strong>Full repayment amount:</strong> ${position.borrowedAmount} USDC
+                <strong>Full repayment amount:</strong> ${position!.borrowedAmount} USDC
               </p>
               <div className="text-sm text-green-700 mt-1">
                 <strong>NFT to be unlocked:</strong>
-                <div className="text-xs mt-1">• {position.collateralNFTs?.[0] || 'NFT'}</div>
+                <div className="text-xs mt-1">• {position!.collateralNFTs?.[0] || 'NFT'}</div>
               </div>
             </div>
             <div className="bg-blue-50 p-3 rounded-lg">
@@ -264,13 +259,13 @@ const PositionManagement: React.FC = () => {
           <div className="mb-3">
             <p className="text-sm text-gray-600 mb-2">Collateral NFTs:</p>
             <div className="space-y-2">
-              {position.collateralNFTs.map((nft, index) => (
+              {position!.collateralNFTs.map((nft, index) => (
                 <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
                   <span className="text-sm font-medium text-gray-900">{nft}</span>
                   <button
                     onClick={() => {
                       // Find NFT by name and withdraw it
-                      const nftToWithdraw = getNFTsByPosition(position.id).find(n => n.name === nft)
+                      const nftToWithdraw = getNFTsByPosition(position!.id).find(n => n.name === nft)
                       if (nftToWithdraw) {
                         withdrawNFTs([nftToWithdraw.id])
                         alert(`Withdrew ${nft} from collateral`)
@@ -288,19 +283,19 @@ const PositionManagement: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-gray-600">Total Collateral Value</p>
-              <p className="font-medium">${position.totalCollateralValue.toLocaleString()}</p>
+              <p className="font-medium">${position!.totalCollateralValue.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-gray-600">Borrowed Amount</p>
-              <p className="font-medium">${position.borrowedAmount.toLocaleString()}</p>
+              <p className="font-medium">${position!.borrowedAmount.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-gray-600">Weighted LTV</p>
-              <p className="font-medium">{position.weightedLTV.toFixed(1)}%</p>
+              <p className="font-medium">{position!.weightedLTV.toFixed(1)}%</p>
             </div>
             <div>
               <p className="text-gray-600">Available to Borrow</p>
-              <p className="font-medium text-green-600">${position.availableToBorrow.toLocaleString()}</p>
+              <p className="font-medium text-green-600">${position!.availableToBorrow.toLocaleString()}</p>
             </div>
           </div>
 
@@ -348,7 +343,7 @@ const PositionManagement: React.FC = () => {
               className="mt-1 h-4 w-4 text-blue-600"
             />
             <label htmlFor="confirmAction" className="text-sm text-gray-700">
-              I understand the risks and consequences of this action on my position.
+              I understand the risks and consequences of this action on my position!.
             </label>
           </div>
           {errors.confirmAction && (

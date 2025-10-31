@@ -4,7 +4,6 @@ import { usePositionStore } from '../stores/positionStore'
 import { useNFTStore } from '../stores/nftStore'
 import { useTransactionStore } from '../stores/transactionStore'
 
-
 // Simple Yield Chart Component
 const YieldChart: React.FC<{ positions: any[] }> = () => {
   // Generate mock yield data for the last 4 weeks (28 days) - matches veNFT epoch cycle

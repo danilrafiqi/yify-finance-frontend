@@ -222,7 +222,7 @@ export const useNFTStore = create<NFTState>()(
               let yieldMultiplier = 1
 
               // Different yield schedules based on NFT type
-              if (nftType === 'veNFT' && (nft.name.includes('veNFT') || nft.name.includes('veAero'))) {
+              if (nftType === 'veAero' && (nft.name.includes('veNFT') || nft.name.includes('veAero'))) {
                 // Weekly yield for veAero (7 days worth)
                 yieldMultiplier = 7
               } else if (nftType === 'rwa' && !nft.name.includes('veAero')) {
