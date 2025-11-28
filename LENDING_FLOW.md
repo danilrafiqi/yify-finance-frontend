@@ -3,6 +3,11 @@ YIFY Lending Platform Flow Documentation
 Overview
 YIFY is a Web3 lending protocol that allows users to borrow against productive NFTs (veNFTs and NFT RWA) with automatic repayment through yield generation.
 
+Platform Statistics Display:
+- Total Value Locked (TVL)
+- Total Borrow
+- Available Fund
+
 Key Parameters
 
 LTV Calculation
@@ -46,17 +51,26 @@ NFT RWA
   - Maksimal pinjaman berdasarkan LTV
   - Estimasi waktu pelunasan (65 minggu)
   - Simulasi alokasi yield (75% untuk pelunasan)
+  - Origination fee 0.8%
 
 4. Konfirmasi & Cairkan Dana
 - Tinjau detail pinjaman
-- Bayar gas fee untuk approve + transaksi
+- Bayar gas fee + origination fee untuk approve + transaksi
 - Dana langsung masuk ke wallet dalam USDC
 
 5. Pembayaran Otomatis
 - 75% yield otomatis dialokasikan untuk pelunasan
 - Borrower bisa melunasi lebih cepat tanpa penalti
 
-6. Selesai
+6. Kelola Pinjaman (Opsional)
+- Akses halaman detail pinjaman (/borrower/:idnft)
+- Pilih konfigurasi yield:
+  - Auto-repay: Semua yield untuk pelunasan utang
+  - Compound reinvest: Yield diinvestasikan ulang (khusus veNFT)
+- Withdraw NFT setelah pinjaman lunas
+- Manual repay jika diperlukan
+
+7. Selesai
 - Setelah lunas, NFT bisa ditarik kembali
 - Jika belum lunas dalam 65 minggu, pinjaman diperpanjang otomatis
 
@@ -66,12 +80,11 @@ Flow Pemberi Pinjaman (Lender)
 - Setujui smart contract (1x approve)
 - USDC masuk ke pool lending
 
-2. Terima & Kelola Yield
+2. Terima & Pantau Yield
 - Dapatkan 20% dari yield yang dihasilkan (dalam USDC)
 - Notifikasi real-time saat yield masuk
-- Opsi auto-reinvest yield
 
-3. Tarik Dana
+3. Kelola Dana
 - Tarik USDC kapan saja (jika likuiditas tersedia)
 - Tidak ada lock period atau fee penarikan
 
@@ -87,16 +100,19 @@ Simulasi Pinjaman
 Dashboard
 
 Borrower
-- Riwayat pinjaman
-- Progress pelunasan
-- Sisa hutang
-- Estimasi waktu pelunasan
+- Daftar posisi pinjaman aktif dengan detail NFT
+- Progress bar pelunasan (0-65 minggu)
+- Summary cards: Total debt, Total collateral value, Estimated completion date
+- Transaction history table
+- Quick actions: View details, Withdraw NFT (ketika lunas)
+- Halaman detail individual per NFT (/borrower/:idnft)
 
 Lender
-- Total deposit USDC
-- Imbal hasil yang diterima
-- Riwayat transaksi
-- Status auto-reinvest
+- Current Balance (total deposit + yield earned)
+- Total USDC deposited
+- Total yield earned
+- Current APR
+- Withdrawal and Deposit history table
 
 Notifikasi
 
@@ -115,6 +131,7 @@ Parameter Penting
 Umum
 - Maksimal LTV: 50% untuk semua collateral
 - Waktu Pelunasan: 65 minggu (1 tahun 3 bulan)
+- Origination Fee: 0.8% dari jumlah pinjaman
 - Tidak Ada Bunga: Tidak ada bunga atau denda pelunasan lebih cepat
 
 Bagi Hasil
