@@ -48,8 +48,8 @@ Refactor the entire YIFY lending frontend UI to match the specifications in `Fea
 - Hero section with YIFY logo (neo-brutalism style)
 - Platform statistics cards:
   - Total TVL (mock: $2.5M)
-  - Total Loans (mock: 150)
-  - Active Users (mock: 89)
+  - Total borrow
+  - Available fund
 - Two prominent CTA buttons: **"BORROW"** and **"LEND"** (large, bold, colored)
 - Brief explanation sections with icons
 - Network indicators (Optimism/Base/Ethereum badges)
@@ -71,6 +71,19 @@ Refactor the entire YIFY lending frontend UI to match the specifications in `Fea
   - Estimated completion date
 - Transaction history table
 - Quick actions: View details, Withdraw NFT (when paid)
+
+
+#### **Borrower Detail**
+**Route**: `/borrower/:idnft`
+Manage individual collateral positions with advanced controls:
+- Withdraw NFT (when loan is fully repaid)
+- Manual repay (additional payments)
+- Vote veNFT or claim RWA yield
+- Dividend history table
+- Dividend performance chart
+- Yield configuration: Choose between auto-repay debt vs compound reinvest (veNFT only)
+  - Auto-repay: All yield allocated to debt repayment
+  - Compound reinvest: Yield reinvested to increase voting power/future yield
 
 #### **Collateral Selection** (`src/pages/borrower/CollateralSelection.tsx`)
 **Route**: `/borrower/select-collateral`
@@ -99,7 +112,7 @@ Refactor the entire YIFY lending frontend UI to match the specifications in `Fea
   - Visual timeline (65 weeks)
   - Weekly yield generation visualization
   - Auto-repayment progress animation
-  - Breakdown: 75% repayment, 20% lender, 5% protocol
+  - Origination fee 0.8%
 - Summary section:
   - Max borrowable amount
   - Estimated repayment time
@@ -111,16 +124,11 @@ Refactor the entire YIFY lending frontend UI to match the specifications in `Fea
 #### **Lender Dashboard** (`src/pages/lender/Dashboard.tsx`)
 **Route**: `/lender/dashboard`
 - Summary cards:
+  - Current Balance (total deposits + yield earned)
   - Total USDC deposited (mock: $50,000)
   - Total yield earned (mock: $2,500)
   - Current APR (mock: 20%)
-  - Active positions count
-- Yield tracking section:
-  - Real-time yield streams from different NFT pools
-  - Weekly/monthly yield breakdown
-  - Visual charts/graphs
-- Auto-reinvest toggle (large switch, neo-brutalism style)
-- Withdrawal history table
+- Withdrawal and Deposit history table
 - "Deposit More" CTA button
 
 #### **Deposit Interface** (`src/pages/lender/Deposit.tsx`)
@@ -221,8 +229,18 @@ interface MockLenderPosition {
   depositAmount: number
   yieldEarned: number
   apr: number
-  autoReinvest: boolean
-  depositDate: Date
+  depositDate: string
+}
+```
+
+### Lender Transaction Mock Data:
+```typescript
+interface MockLenderTransaction {
+  id: string
+  type: 'deposit' | 'withdraw' | 'yield'
+  amount: number
+  date: string
+  status: 'completed' | 'pending'
 }
 ```
 

@@ -101,13 +101,13 @@ const BorrowerDashboard: React.FC = () => {
                   
                   {/* Actions */}
                   <div className="flex flex-col gap-2 justify-center lg:w-48 lg:border-l-2 lg:border-gray-100 lg:pl-6">
-                    <button className="btn-neo text-sm w-full bg-white hover:bg-gray-50">
+                    <Link to={`/borrower/${position.nftId}`} className="btn-neo text-sm w-full bg-white hover:bg-gray-50 text-center">
                       View Details
-                    </button>
+                    </Link>
                     {position.status === 'completed' && (
-                       <button className="btn-primary text-sm w-full flex items-center justify-center gap-1">
+                       <Link to={`/borrower/${position.nftId}`} className="btn-primary text-sm w-full flex items-center justify-center gap-1 text-center">
                          Withdraw NFT <ArrowUpRight size={16} />
-                       </button>
+                       </Link>
                     )}
                   </div>
                 </div>

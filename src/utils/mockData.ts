@@ -28,8 +28,15 @@ export interface MockLenderPosition {
   depositAmount: number
   yieldEarned: number
   apr: number
-  autoReinvest: boolean
   depositDate: string
+}
+
+export interface MockLenderTransaction {
+  id: string
+  type: 'deposit' | 'withdraw' | 'yield'
+  amount: number
+  date: string
+  status: 'completed' | 'pending'
 }
 
 export const MOCK_NFTS: MockNFT[] = [
@@ -67,4 +74,3 @@ export const MOCK_NFTS: MockNFT[] = [
     maxBorrow: 1875
   }
 ]
-

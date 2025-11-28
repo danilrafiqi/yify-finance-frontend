@@ -41,6 +41,7 @@ const LoanCalculator: React.FC = () => {
   const repaymentAllocation = weeklyYield * 0.75
   const weeksToRepay = Math.ceil(loanAmount / repaymentAllocation)
   const totalYieldGenerated = weeklyYield * weeksToRepay
+  const originationFee = loanAmount * 0.008
 
   const handleBorrow = () => {
     createPosition(nft.id, loanAmount, nft.price)
@@ -104,7 +105,7 @@ const LoanCalculator: React.FC = () => {
               <Clock size={24} /> Repayment Simulation
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-white border-4 border-black p-4 shadow-neo-sm">
                 <p className="text-sm font-bold uppercase text-gray-500">Est. Time to Repay</p>
                 <p className="text-3xl font-black">{weeksToRepay} Weeks</p>
@@ -117,58 +118,9 @@ const LoanCalculator: React.FC = () => {
                 <p className="text-sm font-bold uppercase text-gray-500">Total Yield Gen.</p>
                 <p className="text-3xl font-black text-neo-blue">${totalYieldGenerated.toFixed(2)}</p>
               </div>
-            </div>
-
-            {/* Timeline Visualization */}
-            <div className="bg-white border-4 border-black p-6">
-              <h4 className="font-black uppercase mb-4">Yield Allocation Breakdown</h4>
-              <div className="flex flex-col md:flex-row gap-4 items-center">
-                <div className="flex-1 w-full space-y-4">
-                  <div>
-                    <div className="flex justify-between font-bold text-sm mb-1">
-                      <span>Repayment (75%)</span>
-                      <span>${repaymentAllocation.toFixed(2)}/wk</span>
-                    </div>
-                    <div className="h-6 bg-gray-200 border-2 border-black relative overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: '75%' }}
-                        className="absolute top-0 left-0 h-full bg-neo-green"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between font-bold text-sm mb-1">
-                      <span>Lender Yield (20%)</span>
-                      <span>${(weeklyYield * 0.20).toFixed(2)}/wk</span>
-                    </div>
-                    <div className="h-6 bg-gray-200 border-2 border-black relative overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: '20%' }}
-                        className="absolute top-0 left-0 h-full bg-neo-yellow"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between font-bold text-sm mb-1">
-                      <span>Protocol Fee (5%)</span>
-                      <span>${(weeklyYield * 0.05).toFixed(2)}/wk</span>
-                    </div>
-                    <div className="h-6 bg-gray-200 border-2 border-black relative overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: '5%' }}
-                        className="absolute top-0 left-0 h-full bg-neo-red"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Donut Chart Visual Placeholder */}
-                <div className="w-32 h-32 rounded-full border-4 border-black bg-white flex items-center justify-center relative shadow-neo">
-                   <PieChart size={48} />
-                </div>
+              <div className="bg-white border-4 border-black p-4 shadow-neo-sm">
+                <p className="text-sm font-bold uppercase text-gray-500">Origination Fee (0.8%)</p>
+                <p className="text-3xl font-black text-neo-red">${originationFee.toFixed(2)}</p>
               </div>
             </div>
           </div>

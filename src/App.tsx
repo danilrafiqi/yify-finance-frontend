@@ -1,4 +1,3 @@
-import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Header from './components/common/Header'
 import NotificationSystem from './components/common/NotificationSystem'
@@ -7,6 +6,7 @@ import NotificationSystem from './components/common/NotificationSystem'
 import LandingPage from './pages/LandingPage'
 import HelpFAQ from './pages/HelpFAQ'
 import BorrowerDashboard from './pages/borrower/Dashboard'
+import BorrowerDetail from './pages/borrower/BorrowerDetail'
 import CollateralSelection from './pages/borrower/CollateralSelection'
 import LoanCalculator from './pages/borrower/LoanCalculator'
 import LenderDashboard from './pages/lender/Dashboard'
@@ -25,6 +25,7 @@ function AppContent() {
           
           {/* Borrower Flow */}
           <Route path="/borrower/dashboard" element={<BorrowerDashboard />} />
+          <Route path="/borrower/:idnft" element={<BorrowerDetail />} />
           <Route path="/borrower/select-collateral" element={<CollateralSelection />} />
           <Route path="/borrower/calculator" element={<LoanCalculator />} />
           
