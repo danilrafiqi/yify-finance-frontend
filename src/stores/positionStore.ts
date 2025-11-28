@@ -5,6 +5,8 @@ interface PositionState {
   positions: MockLoanPosition[]
   createPosition: (nftId: string, loanAmount: number, collateralValue: number) => void
   advanceWeek: () => void // For simulation
+  manualRepay: (positionId: string, amount: number) => void
+  removePosition: (positionId: string) => void
 }
 
 export const usePositionStore = create<PositionState>((set) => ({
@@ -54,6 +56,30 @@ export const usePositionStore = create<PositionState>((set) => ({
           status: newRemainingDebt <= 0 ? 'completed' : 'active'
         }
       })
+    }))
+  },
+
+  manualRepay: (positionId, amount) => {
+    set((state) => ({
+      positions: state.positions.map((pos) => {
+        if (pos.id !== positionId) return pos
+
+        const newRemainingDebt = Math.max(0, pos.remainingDebt - amount)
+        const newProgress = ((pos.loanAmount - newRemainingDebt) / pos.loanAmount) * 100
+
+        return {
+          ...pos,
+          remainingDebt: newRemainingDebt,
+          repaymentProgress: newProgress,
+          status: newRemainingDebt <= 0 ? 'completed' : 'active'
+        }
+      })
+    }))
+  },
+
+  removePosition: (positionId) => {
+    set((state) => ({
+      positions: state.positions.filter((pos) => pos.id !== positionId)
     }))
   }
 }))

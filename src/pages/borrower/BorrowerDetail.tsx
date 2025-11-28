@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useNFTStore } from '../../stores/nftStore'
 import { usePositionStore } from '../../stores/positionStore'
+import { generateDividendData } from '../../utils/mockData'
 import NFTCard from '../../components/common/NFTCard'
-import { ArrowLeft, TrendingUp, Wallet, Settings, Clock, AlertTriangle, FileText, Vote, BarChart3, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { ArrowLeft, Wallet, Settings, AlertTriangle, FileText, Vote, BarChart3, ArrowUpRight } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { motion } from 'framer-motion'
 
@@ -11,7 +12,7 @@ const BorrowerDetail: React.FC = () => {
   const { idnft } = useParams<{ idnft: string }>()
   const navigate = useNavigate()
   const { getNFTById } = useNFTStore()
-  const { positions } = usePositionStore()
+  const { positions, manualRepay, removePosition } = usePositionStore()
   
   // Find the position for this NFT if it exists
   const position = positions.find(p => p.nftId === idnft)
@@ -24,6 +25,17 @@ const BorrowerDetail: React.FC = () => {
   const [manualRepayAmount, setManualRepayAmount] = useState<string>('')
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [currentSavedConfig, setCurrentSavedConfig] = useState<{mode: 'repay' | 'reinvest', ratio?: number}>({mode: 'repay'})
+  const [chartRange, setChartRange] = useState<'1W' | '1M' | '3M' | 'ALL'>('1M')
+
+  // Mock Dividend Data
+  const dividendData = useMemo(() => {
+    let days = 30
+    if (chartRange === '1W') days = 7
+    if (chartRange === '1M') days = 30
+    if (chartRange === '3M') days = 90
+    if (chartRange === 'ALL') days = 180
+    return generateDividendData(days)
+  }, [chartRange])
 
   if (!nft || !position) {
     return (
@@ -41,6 +53,7 @@ const BorrowerDetail: React.FC = () => {
       toast.error('Cannot withdraw while debt remains!')
       return
     }
+    removePosition(position.id)
     toast.success('NFT Withdrawn successfully!')
     navigate('/borrower/dashboard')
   }
@@ -51,7 +64,16 @@ const BorrowerDetail: React.FC = () => {
       toast.error('Please enter a valid amount')
       return
     }
-    toast.success(`Successfully repaid $${manualRepayAmount}`)
+    
+    const amount = Number(manualRepayAmount)
+    
+    if (amount > position.remainingDebt) {
+      toast.error(`Amount exceeds remaining debt ($${position.remainingDebt.toFixed(2)})`)
+      return
+    }
+
+    manualRepay(position.id, amount)
+    toast.success(`Successfully repaid $${amount}`)
     setManualRepayAmount('')
   }
 
@@ -143,7 +165,11 @@ const BorrowerDetail: React.FC = () => {
               <ArrowUpRight size={20} /> Withdraw NFT
             </button>
 
-            
+             {(nft.type === 'veAERO' || nft.type === 'veVELO') && (
+              <button className="w-full btn-neo bg-neo-blue text-white flex items-center justify-center gap-2">
+                <Vote size={20} /> Vote veNFT
+              </button>
+            )}
             
             {nft.type === 'rwa' && (
               <button className="w-full btn-neo bg-neo-magenta text-white flex items-center justify-center gap-2">
@@ -218,48 +244,74 @@ const BorrowerDetail: React.FC = () => {
                         </h3>
                         
                         <div className="flex gap-2">
-                           <button className="px-3 py-1 text-sm font-bold bg-black text-white">1W</button>
-                           <button className="px-3 py-1 text-sm font-bold bg-gray-200 hover:bg-gray-300">1M</button>
-                           <button className="px-3 py-1 text-sm font-bold bg-gray-200 hover:bg-gray-300">ALL</button>
+                           {(['1W', '1M', '3M', 'ALL'] as const).map((range) => (
+                             <button 
+                               key={range}
+                               onClick={() => setChartRange(range)}
+                               className={`px-3 py-1 text-sm font-bold ${chartRange === range ? 'bg-black text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                             >
+                               {range}
+                             </button>
+                           ))}
                         </div>
                     </div>
-                    {/* Placeholder for Chart */}
-                    <div className="h-64 bg-gray-50 border-2 border-dashed border-black flex flex-col items-center justify-center font-bold text-gray-400">
-                        <BarChart3 size={48} className="mb-2 opacity-20" />
-                        <p>Interactive Yield Chart Visualization</p>
+                    {/* SVG Chart */}
+                    <div className="h-64 bg-gray-50 border-2 border-dashed border-black p-4 relative flex items-end justify-between gap-2">
+                        {dividendData.length > 0 ? (
+                          dividendData.map((data, index) => {
+                            const maxAmount = Math.max(...dividendData.map(d => d.amount));
+                            const heightPercentage = (data.amount / maxAmount) * 100;
+                            return (
+                              <div key={index} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                                <div 
+                                  className="w-full bg-neo-green border-2 border-black hover:bg-neo-yellow transition-all"
+                                  style={{ height: `${heightPercentage}%`, minHeight: '4px' }}
+                                ></div>
+                                <span className="text-xs font-bold mt-1 text-gray-500 absolute -bottom-6 transform -rotate-45 origin-top-left">
+                                  {new Date(data.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 bg-black text-white text-xs p-1 rounded whitespace-nowrap z-10 pointer-events-none">
+                                  ${data.amount.toFixed(2)}
+                                </div>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">
+                            No data available for this range
+                          </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="overflow-x-auto border-4 border-black shadow-neo">
+                <div className="overflow-x-auto border-4 border-black shadow-neo mt-8">
                     <table className="w-full bg-white text-left">
                     <thead className="bg-black text-white font-black uppercase">
                         <tr>
                         <th className="p-4 border-b-4 border-black">Date</th>
                         <th className="p-4 border-b-4 border-black">Type</th>
                         <th className="p-4 border-b-4 border-black">Amount</th>
+                        <th className="p-4 border-b-4 border-black">Cumulative</th>
                         <th className="p-4 border-b-4 border-black">Status</th>
                         </tr>
                     </thead>
                     <tbody className="font-bold">
-                        {/* Mock History Data */}
-                        <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-15 14:30</td>
-                            <td className="p-4">Dividend Payout</td>
-                            <td className="p-4 text-neo-green">+$45.50</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
-                        </tr>
-                        <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-08 14:30</td>
-                            <td className="p-4">Dividend Payout</td>
-                            <td className="p-4 text-neo-green">+$42.20</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
-                        </tr>
-                        <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-01 14:30</td>
-                            <td className="p-4">Dividend Payout</td>
-                            <td className="p-4 text-neo-green">+$48.10</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
-                        </tr>
+                        {dividendData.length > 0 ? (
+                          dividendData.slice().reverse().map((data, index) => (
+                            <tr key={index} className="border-b-2 border-gray-200 hover:bg-gray-50">
+                                <td className="p-4">{new Date(data.date).toLocaleDateString()} {new Date(data.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td className="p-4">Dividend Payout</td>
+                                <td className="p-4 text-neo-green">+${data.amount.toFixed(2)}</td>
+                                <td className="p-4 font-mono">${data.cumulative.toFixed(2)}</td>
+                                <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="p-4 text-center text-gray-500">No history available</td>
+                          </tr>
+                        )}
                     </tbody>
                     </table>
                 </div>
@@ -345,6 +397,38 @@ const BorrowerDetail: React.FC = () => {
                             )}
                         </label>
                     </div>
+
+                    {/* Current Configuration Status */}
+                    <div className="mt-6 p-4 bg-black text-white border-2 border-black">
+                        <h4 className="font-black uppercase mb-2">Current Active Configuration</h4>
+                        <p className="font-bold">
+                            {currentSavedConfig.mode === 'repay'
+                                ? '🔄 100% Auto-Repay Mode'
+                                : `📈 ${currentSavedConfig.ratio}% Reinvest / ${100 - (currentSavedConfig.ratio || 0)}% Repay Mode`
+                            }
+                        </p>
+                    </div>
+
+                    {/* Save Button */}
+                    <button
+                        onClick={handleSaveConfiguration}
+                        disabled={isSaving}
+                        className={`w-full mt-6 btn-primary text-xl py-4 shadow-neo-lg hover:shadow-neo hover:translate-y-1 flex items-center justify-center gap-2 ${
+                            isSaving ? 'opacity-75 cursor-not-allowed' : ''
+                        }`}
+                    >
+                        {isSaving ? (
+                            <>
+                                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Saving Configuration...
+                            </>
+                        ) : (
+                            <>
+                                <Settings size={24} />
+                                Save Configuration
+                            </>
+                        )}
+                    </button>
 
                      {nft.type === 'rwa' && (
                         <div className="mt-4 p-4 bg-red-100 border-2 border-red-500 text-red-700 font-bold flex items-center gap-2">

@@ -39,6 +39,12 @@ export interface MockLenderTransaction {
   status: 'completed' | 'pending'
 }
 
+export interface MockDividendData {
+  date: string
+  amount: number
+  cumulative: number
+}
+
 export const MOCK_NFTS: MockNFT[] = [
   {
     id: 'nft-1',
@@ -74,3 +80,27 @@ export const MOCK_NFTS: MockNFT[] = [
     maxBorrow: 1875
   }
 ]
+
+export const generateDividendData = (days: number): MockDividendData[] => {
+  const data: MockDividendData[] = []
+  let cumulative = 0
+  const now = new Date()
+
+  for (let i = 0; i < days; i++) {
+    // Generate data for every 7 days (weekly)
+    if (i % 7 === 0) {
+      const date = new Date(now)
+      date.setDate(date.getDate() - (days - i))
+      
+      const amount = 40 + Math.random() * 10 // Random amount between 40-50
+      cumulative += amount
+      
+      data.push({
+        date: date.toISOString(),
+        amount: Number(amount.toFixed(2)),
+        cumulative: Number(cumulative.toFixed(2))
+      })
+    }
+  }
+  return data
+}

@@ -41,18 +41,10 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto px-4">
+      <section className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-6 max-w-7xl mx-auto px-4">
         <div className="card-neo bg-neo-red text-white hover:rotate-1 transition-transform">
           <h3 className="text-xl font-bold uppercase mb-2">Total Value Locked</h3>
           <p className="text-3xl font-black">${(tvl / 1000000).toFixed(2)}M</p>
-        </div>
-        <div className="card-neo bg-neo-blue text-black hover:-rotate-1 transition-transform">
-          <h3 className="text-xl font-bold uppercase mb-2">Total Loans</h3>
-          <p className="text-3xl font-black">{totalLoans}</p>
-        </div>
-        <div className="card-neo bg-neo-magenta text-white hover:rotate-1 transition-transform">
-          <h3 className="text-xl font-bold uppercase mb-2">Active Users</h3>
-          <p className="text-3xl font-black">{activeUsers}</p>
         </div>
         <div className="card-neo bg-neo-yellow text-black hover:-rotate-1 transition-transform">
           <h3 className="text-xl font-bold uppercase mb-2">Total Borrow</h3>

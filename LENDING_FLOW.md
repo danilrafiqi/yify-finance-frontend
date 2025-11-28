@@ -5,8 +5,6 @@ YIFY is a Web3 lending protocol that allows users to borrow against productive N
 
 Platform Statistics Display:
 - Total Value Locked (TVL)
-- Total Loans
-- Active Users
 - Total Borrow
 - Available Fund
 
