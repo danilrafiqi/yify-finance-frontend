@@ -20,6 +20,10 @@ const BorrowerDetail: React.FC = () => {
   // States
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview')
   const [yieldConfig, setYieldConfig] = useState<'repay' | 'reinvest'>('repay')
+  const [reinvestRatio, setReinvestRatio] = useState<number>(50) // 50% default
+  const [manualRepayAmount, setManualRepayAmount] = useState<string>('')
+  const [isSaving, setIsSaving] = useState<boolean>(false)
+  const [currentSavedConfig, setCurrentSavedConfig] = useState<{mode: 'repay' | 'reinvest', ratio?: number}>({mode: 'repay'})
 
   if (!nft || !position) {
     return (
@@ -41,8 +45,14 @@ const BorrowerDetail: React.FC = () => {
     navigate('/borrower/dashboard')
   }
 
-  const handleRepay = () => {
-    toast.success('Repayment simulation successful!')
+  const handleManualRepay = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!manualRepayAmount || Number(manualRepayAmount) <= 0) {
+      toast.error('Please enter a valid amount')
+      return
+    }
+    toast.success(`Successfully repaid $${manualRepayAmount}`)
+    setManualRepayAmount('')
   }
 
   const handleYieldConfigChange = (config: 'repay' | 'reinvest') => {
@@ -51,7 +61,29 @@ const BorrowerDetail: React.FC = () => {
       return
     }
     setYieldConfig(config)
-    toast.success(`Yield configuration updated to: ${config === 'repay' ? 'Repay Debt' : 'Compound Reinvest'}`)
+  }
+
+  const handleSaveConfiguration = async () => {
+    if (nft.type !== 'veAERO' && nft.type !== 'veVELO' && yieldConfig === 'reinvest') {
+      toast.error('Yield reinvestment only available for veNFTs!')
+      return
+    }
+
+    setIsSaving(true)
+
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    // Save configuration
+    const newConfig = {
+      mode: yieldConfig,
+      ratio: yieldConfig === 'reinvest' ? reinvestRatio : undefined
+    }
+
+    setCurrentSavedConfig(newConfig)
+    setIsSaving(false)
+
+    toast.success(`Configuration saved successfully! ${yieldConfig === 'repay' ? '100% Auto-Repay' : `${reinvestRatio}% Reinvest / ${100 - reinvestRatio}% Repay`}`)
   }
 
   return (
@@ -83,12 +115,21 @@ const BorrowerDetail: React.FC = () => {
           <div className="card-neo bg-white space-y-4">
             <h3 className="text-xl font-black uppercase">Quick Actions</h3>
             
-            <button 
-              onClick={handleRepay}
-              className="w-full btn-neo bg-neo-yellow text-black flex items-center justify-center gap-2"
-            >
-              <Wallet size={20} /> Manual Repay
-            </button>
+            <div className="border-b-4 border-black pb-4 mb-4">
+              <h4 className="font-bold uppercase mb-2">Manual Repay</h4>
+              <form onSubmit={handleManualRepay} className="flex gap-2">
+                <input 
+                  type="number" 
+                  placeholder="Amount" 
+                  value={manualRepayAmount}
+                  onChange={(e) => setManualRepayAmount(e.target.value)}
+                  className="w-full border-2 border-black p-2 font-bold focus:outline-none focus:bg-neo-yellow"
+                />
+                <button type="submit" className="btn-neo bg-black text-white p-2">
+                  <Wallet size={20} />
+                </button>
+              </form>
+            </div>
             
             <button 
               onClick={handleWithdraw}
@@ -102,11 +143,7 @@ const BorrowerDetail: React.FC = () => {
               <ArrowUpRight size={20} /> Withdraw NFT
             </button>
 
-             {(nft.type === 'veAERO' || nft.type === 'veVELO') && (
-              <button className="w-full btn-neo bg-neo-blue text-white flex items-center justify-center gap-2">
-                <Vote size={20} /> Vote veNFT
-              </button>
-            )}
+            
             
             {nft.type === 'rwa' && (
               <button className="w-full btn-neo bg-neo-magenta text-white flex items-center justify-center gap-2">
@@ -136,7 +173,7 @@ const BorrowerDetail: React.FC = () => {
               onClick={() => setActiveTab('settings')}
               className={`text-xl font-black uppercase px-4 py-2 ${activeTab === 'settings' ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
             >
-              Settings
+              Yield Settings
             </button>
           </div>
 
@@ -165,8 +202,8 @@ const BorrowerDetail: React.FC = () => {
                         />
                     </div>
                     <div className="flex justify-between mt-2 font-bold">
-                        <span>{position.repaymentProgress}% Repaid</span>
-                        <span>{position.totalWeeks - position.currentWeek} Weeks Left</span>
+                        <span>{position.repaymentProgress.toFixed(1)}% Repaid</span>
+                        <span>{Math.max(0, position.totalWeeks - position.currentWeek)} Weeks Left</span>
                     </div>
                 </div>
               </motion.div>
@@ -179,11 +216,17 @@ const BorrowerDetail: React.FC = () => {
                         <h3 className="text-xl font-black uppercase flex items-center gap-2">
                             <BarChart3 /> Dividend Performance
                         </h3>
-                        <span className="text-sm font-bold text-gray-500">Last 30 Days</span>
+                        
+                        <div className="flex gap-2">
+                           <button className="px-3 py-1 text-sm font-bold bg-black text-white">1W</button>
+                           <button className="px-3 py-1 text-sm font-bold bg-gray-200 hover:bg-gray-300">1M</button>
+                           <button className="px-3 py-1 text-sm font-bold bg-gray-200 hover:bg-gray-300">ALL</button>
+                        </div>
                     </div>
                     {/* Placeholder for Chart */}
-                    <div className="h-64 bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center font-bold text-gray-400">
-                        [Yield Chart Visualization Placeholder]
+                    <div className="h-64 bg-gray-50 border-2 border-dashed border-black flex flex-col items-center justify-center font-bold text-gray-400">
+                        <BarChart3 size={48} className="mb-2 opacity-20" />
+                        <p>Interactive Yield Chart Visualization</p>
                     </div>
                 </div>
 
@@ -200,22 +243,22 @@ const BorrowerDetail: React.FC = () => {
                     <tbody className="font-bold">
                         {/* Mock History Data */}
                         <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-15</td>
+                            <td className="p-4">2024-03-15 14:30</td>
                             <td className="p-4">Dividend Payout</td>
                             <td className="p-4 text-neo-green">+$45.50</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black">Distributed</span></td>
+                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
                         </tr>
                         <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-08</td>
+                            <td className="p-4">2024-03-08 14:30</td>
                             <td className="p-4">Dividend Payout</td>
                             <td className="p-4 text-neo-green">+$42.20</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black">Distributed</span></td>
+                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
                         </tr>
                         <tr className="border-b-2 border-gray-200">
-                            <td className="p-4">2024-03-01</td>
+                            <td className="p-4">2024-03-01 14:30</td>
                             <td className="p-4">Dividend Payout</td>
                             <td className="p-4 text-neo-green">+$48.10</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black">Distributed</span></td>
+                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
                         </tr>
                     </tbody>
                     </table>
@@ -227,36 +270,79 @@ const BorrowerDetail: React.FC = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                  <div className="card-neo bg-white">
                     <h3 className="text-xl font-black uppercase mb-6 flex items-center gap-2">
-                        <Settings /> Yield Configuration
+                        <Settings /> Yield Configuration Panel
                     </h3>
 
                     <div className="space-y-4">
-                        <label className={`flex items-center gap-4 p-4 border-4 border-black cursor-pointer transition-all ${yieldConfig === 'repay' ? 'bg-neo-yellow shadow-neo' : 'hover:bg-gray-50'}`}>
+                        <label className={`flex items-start gap-4 p-6 border-4 border-black cursor-pointer transition-all ${yieldConfig === 'repay' ? 'bg-neo-yellow shadow-neo' : 'hover:bg-gray-50'}`}>
                             <input 
                                 type="radio" 
                                 name="yieldConfig" 
                                 checked={yieldConfig === 'repay'} 
                                 onChange={() => handleYieldConfigChange('repay')}
-                                className="w-6 h-6 accent-black"
+                                className="mt-1 w-6 h-6 accent-black"
                             />
                             <div>
-                                <h4 className="font-black uppercase text-lg">Auto-Repay Debt (Default)</h4>
-                                <p className="text-sm font-bold text-gray-600">All generated yield is used to pay down your loan principal + interest.</p>
+                                <h4 className="font-black uppercase text-xl mb-2">Auto-Repay Mode (Default)</h4>
+                                <p className="font-bold text-gray-700 leading-relaxed">
+                                    All generated yield is automatically allocated to pay down your loan principal + interest.
+                                    This is the fastest way to become debt-free and unlock your NFT.
+                                </p>
                             </div>
                         </label>
 
-                        <label className={`flex items-center gap-4 p-4 border-4 border-black cursor-pointer transition-all ${yieldConfig === 'reinvest' ? 'bg-neo-cyan shadow-neo' : 'hover:bg-gray-50'}`}>
-                            <input 
-                                type="radio" 
-                                name="yieldConfig" 
-                                checked={yieldConfig === 'reinvest'}
-                                onChange={() => handleYieldConfigChange('reinvest')}
-                                className="w-6 h-6 accent-black"
-                            />
-                            <div>
-                                <h4 className="font-black uppercase text-lg">Compound Reinvest (veNFT Only)</h4>
-                                <p className="text-sm font-bold text-gray-600">Yield is reinvested to increase your voting power and future yield.</p>
+                        <label className={`block p-6 border-4 border-black cursor-pointer transition-all ${yieldConfig === 'reinvest' ? 'bg-neo-cyan shadow-neo' : 'hover:bg-gray-50'}`}>
+                            <div className="flex items-start gap-4 mb-4">
+                                <input 
+                                    type="radio" 
+                                    name="yieldConfig" 
+                                    checked={yieldConfig === 'reinvest'}
+                                    onChange={() => handleYieldConfigChange('reinvest')}
+                                    className="mt-1 w-6 h-6 accent-black"
+                                />
+                                <div>
+                                    <h4 className="font-black uppercase text-xl mb-2">Compound Reinvest Mode (veNFT Only)</h4>
+                                    <p className="font-bold text-gray-700 leading-relaxed">
+                                        Reinvest yield to increase your voting power and future yield potential.
+                                    </p>
+                                </div>
                             </div>
+
+                            {yieldConfig === 'reinvest' && (
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 0 }} 
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="pl-10 mt-4 border-t-2 border-black pt-4"
+                                >
+                                    <h5 className="font-black uppercase mb-4">Reinvestment Allocation</h5>
+                                    
+                                    <div className="flex items-center justify-between mb-2 font-bold">
+                                        <span>Debt Repayment: {100 - reinvestRatio}%</span>
+                                        <span>Reinvest: {reinvestRatio}%</span>
+                                    </div>
+                                    
+                                    <input 
+                                        type="range" 
+                                        min="0" 
+                                        max="100" 
+                                        step="10"
+                                        value={reinvestRatio}
+                                        onChange={(e) => setReinvestRatio(Number(e.target.value))}
+                                        className="w-full h-4 bg-white rounded-lg appearance-none cursor-pointer accent-black border-2 border-black mb-4"
+                                    />
+
+                                    <div className="p-4 bg-white border-2 border-black">
+                                        <p className="font-bold text-sm mb-2 flex justify-between">
+                                            <span>Projected Voting Power Increase:</span>
+                                            <span className="text-neo-green">+{reinvestRatio * 0.5} veNFT</span>
+                                        </p>
+                                        <p className="font-bold text-sm flex justify-between">
+                                            <span>Est. Debt Reduction Speed:</span>
+                                            <span className="text-neo-red">-{reinvestRatio}% Slower</span>
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
                         </label>
                     </div>
 

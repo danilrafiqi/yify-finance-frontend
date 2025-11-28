@@ -75,15 +75,36 @@ Refactor the entire YIFY lending frontend UI to match the specifications in `Fea
 
 #### **Borrower Detail**
 **Route**: `/borrower/:idnft`
-Manage individual collateral positions with advanced controls:
-- Withdraw NFT (when loan is fully repaid)
-- Manual repay (additional payments)
-- Vote veNFT or claim RWA yield
-- Dividend history table
-- Dividend performance chart
-- Yield configuration: Choose between auto-repay debt vs compound reinvest (veNFT only)
-  - Auto-repay: All yield allocated to debt repayment
-  - Compound reinvest: Yield reinvested to increase voting power/future yield
+Advanced management interface for individual collateral positions with comprehensive controls and analytics:
+
+- **Withdraw NFT**: Secure withdrawal of collateral when loan is fully repaid (button disabled until debt reaches zero)
+- **Manual Repay**: Additional payment functionality with input form for custom repayment amounts
+  - Triggers repayment flow with amount input and transaction confirmation
+  - Supports partial repayments to reduce debt faster
+- **Dividend History Table**: Comprehensive transaction history showing:
+  - Date and time of each dividend payment
+  - Amount received per dividend
+  - Cumulative yield over time
+  - Transaction status and blockchain confirmation
+- **Dividend Performance Chart**: Interactive visualization displaying:
+  - Historical yield performance over time
+  - Weekly/monthly yield trends
+  - Projected vs actual yield comparisons
+  - Chart controls for different time ranges
+- **Yield Configuration Panel**: Advanced yield allocation settings (veNFT only)
+  - **Auto-Repay Mode**: All generated yield automatically allocated to debt repayment
+    - Default setting for maximum debt reduction speed
+    - No manual intervention required
+  - **Compound Reinvest Mode**: Yield reinvested to increase voting power and future yield potential
+    - Interactive percentage slider (0-100%) for allocation control
+    - Configure split between debt repayment vs reinvestment
+    - Real-time calculation of voting power increase
+    - Projected long-term yield impact display
+  - **Save Configuration Button**: Large neo-brutalism styled button to confirm changes
+    - Validates configuration before saving
+    - Shows success confirmation with transaction simulation
+    - Persists settings to user profile/state
+    - Displays current active configuration status
 
 #### **Collateral Selection** (`src/pages/borrower/CollateralSelection.tsx`)
 **Route**: `/borrower/select-collateral`
