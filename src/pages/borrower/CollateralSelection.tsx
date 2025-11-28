@@ -4,7 +4,7 @@ import { useNFTStore } from '../../stores/nftStore'
 import { useNetworkStore, NetworkType } from '../../stores/networkStore'
 import NFTCard from '../../components/common/NFTCard'
 import { MockNFT } from '../../utils/mockData'
-import { ArrowRight, Filter } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 
 const CollateralSelection: React.FC = () => {
   const navigate = useNavigate()

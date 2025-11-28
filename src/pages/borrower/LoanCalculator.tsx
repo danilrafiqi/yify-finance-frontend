@@ -3,9 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useNFTStore } from '../../stores/nftStore'
 import { usePositionStore } from '../../stores/positionStore'
 import NFTCard from '../../components/common/NFTCard'
-import { ArrowRight, Calculator, Clock, DollarSign, PieChart } from 'lucide-react'
+import { Clock, DollarSign } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { motion } from 'framer-motion'
 
 const LoanCalculator: React.FC = () => {
   const [searchParams] = useSearchParams()

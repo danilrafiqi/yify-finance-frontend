@@ -8,7 +8,7 @@ interface NFTState {
   getNFTById: (id: string) => MockNFT | undefined
 }
 
-export const useNFTStore = create<NFTState>((set, get) => ({
+export const useNFTStore = create<NFTState>((_set, get) => ({
   nfts: MOCK_NFTS,
   
   getNFTsByNetwork: (network: NetworkType) => {

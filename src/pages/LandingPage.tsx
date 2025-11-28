@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { usePlatformStatsStore } from '../stores/platformStatsStore'
 
 const LandingPage: React.FC = () => {
-  const { tvl, totalLoans, activeUsers, totalBorrow, availableFund } = usePlatformStatsStore()
+  const { tvl, totalBorrow, availableFund } = usePlatformStatsStore()
 
   return (
     <div className="space-y-16 py-8">
