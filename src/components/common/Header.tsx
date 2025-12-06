@@ -1,11 +1,11 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import NetworkSwitcher from './NetworkSwitcher'
+// import NetworkSwitcher from './NetworkSwitcher'
 import WalletConnection from './WalletConnection'
 
 const Header: React.FC = () => {
   const location = useLocation()
-  
+
   const isActive = (path: string) => {
     return location.pathname.startsWith(path)
   }
@@ -24,20 +24,20 @@ const Header: React.FC = () => {
 
           {/* Navigation */}
           <nav className="hidden md:flex space-x-8">
-            <Link 
-              to="/borrower/dashboard" 
+            <Link
+              to="/borrower/dashboard"
               className={`font-bold uppercase tracking-wide hover:text-neo-blue transition-colors ${isActive('/borrower') ? 'underline decoration-4 decoration-neo-blue' : ''}`}
             >
               Borrow
             </Link>
-            <Link 
-              to="/lender/dashboard" 
+            <Link
+              to="/lender/dashboard"
               className={`font-bold uppercase tracking-wide hover:text-neo-green transition-colors ${isActive('/lender') ? 'underline decoration-4 decoration-neo-green' : ''}`}
             >
               Lend
             </Link>
-            <Link 
-              to="/help" 
+            <Link
+              to="/help"
               className={`font-bold uppercase tracking-wide hover:text-neo-magenta transition-colors ${isActive('/help') ? 'underline decoration-4 decoration-neo-magenta' : ''}`}
             >
               Help
@@ -46,7 +46,7 @@ const Header: React.FC = () => {
 
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <NetworkSwitcher />
+            {/* <NetworkSwitcher /> */}
             <WalletConnection />
           </div>
         </div>

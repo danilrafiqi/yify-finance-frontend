@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useNFTStore } from '../../stores/nftStore'
-import { useNetworkStore, NetworkType } from '../../stores/networkStore'
+import { useChainId, useSwitchChain } from 'wagmi'
 import NFTCard from '../../components/common/NFTCard'
 import { MockNFT } from '../../utils/mockData'
 import { ArrowRight } from 'lucide-react'
@@ -9,10 +9,31 @@ import { ArrowRight } from 'lucide-react'
 const CollateralSelection: React.FC = () => {
   const navigate = useNavigate()
   const { nfts } = useNFTStore()
-  const { currentNetwork, setNetwork } = useNetworkStore()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
+  // Grouping chains into UI Categories
+  const getNetworkCategory = (id: number) => {
+    switch (id) {
+      case 8453:
+      case 84532: return 'Base'
+
+      case 10:
+      case 11155420: return 'Optimism'
+
+      case 4202: return 'Lisk'
+
+      case 1:
+      case 11155111: return 'Ethereum'
+
+      default: return 'Unknown'
+    }
+  }
+  const currentNetwork = getNetworkCategory(chainId)
+
   const [selectedNFT, setSelectedNFT] = useState<MockNFT | null>(null)
 
-  // Filter NFTs based on current network
+  // Filter NFTs based on the simplified category
+  // This allows 'Base' mock data to show for 'Base Sepolia' connection
   const filteredNFTs = nfts.filter(nft => nft.network === currentNetwork)
 
   const handleSelect = (nft: MockNFT) => {
@@ -26,7 +47,14 @@ const CollateralSelection: React.FC = () => {
     }
   }
 
-  const networks: NetworkType[] = ['Base', 'Optimism', 'Ethereum']
+  // Buttons for the 4 supported ecosystem categories
+  // Defaulting to Testnets for the 'switchChain' action since this is a dev/mock environment
+  const networks = [
+    { name: 'Base', id: 84532 }, // Switch to Base Sepolia
+    { name: 'Optimism', id: 11155420 }, // Switch to Op Sepolia
+    { name: 'Lisk', id: 4202 }, // Switch to Lisk Sepolia
+    { name: 'Ethereum', id: 11155111 } // Switch to Sepolia
+  ]
 
   return (
     <div className="space-y-8">
@@ -39,19 +67,19 @@ const CollateralSelection: React.FC = () => {
       <div className="flex justify-center gap-4 flex-wrap">
         {networks.map(network => (
           <button
-            key={network}
+            key={network.name}
             onClick={() => {
-              setNetwork(network)
+              switchChain({ chainId: network.id })
               setSelectedNFT(null)
             }}
             className={`
               px-6 py-3 border-4 border-black font-bold uppercase shadow-neo transition-all
-              ${currentNetwork === network 
-                ? 'bg-black text-white translate-y-1 shadow-none' 
+              ${currentNetwork === network.name
+                ? 'bg-black text-white translate-y-1 shadow-none'
                 : 'bg-white hover:-translate-y-1 hover:shadow-neo-lg'}
             `}
           >
-            {network}
+            {network.name}
           </button>
         ))}
       </div>

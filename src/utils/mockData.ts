@@ -1,8 +1,9 @@
 export interface MockNFT {
   id: string
   name: string
-  type: 'veAERO' | 'veVELO' | 'rwa'
-  network: 'Base' | 'Optimism' | 'Ethereum'
+  type: 'veAERO' | 'veVELO' | 'rwa' | 'generic'
+  // Simplified networks
+  network: 'Base' | 'Optimism' | 'Ethereum' | 'Lisk'
   price: number
   projectedYield: number // APR %
   imageUrl: string
@@ -78,6 +79,17 @@ export const MOCK_NFTS: MockNFT[] = [
     imageUrl: 'https://placehold.co/400x400/FFFF00/000000/png?text=RWA',
     ltv: 18.75,
     maxBorrow: 1875
+  },
+  {
+    id: 'nft-4',
+    name: 'Lisk Punk #88',
+    type: 'generic',
+    network: 'Lisk',
+    price: 1200,
+    projectedYield: 20,
+    imageUrl: 'https://placehold.co/400x400/00CCFF/FFFFFF/png?text=LiskNFT',
+    ltv: 25,
+    maxBorrow: 300
   }
 ]
 
@@ -91,10 +103,10 @@ export const generateDividendData = (days: number): MockDividendData[] => {
     if (i % 7 === 0) {
       const date = new Date(now)
       date.setDate(date.getDate() - (days - i))
-      
+
       const amount = 40 + Math.random() * 10 // Random amount between 40-50
       cumulative += amount
-      
+
       data.push({
         date: date.toISOString(),
         amount: Number(amount.toFixed(2)),
