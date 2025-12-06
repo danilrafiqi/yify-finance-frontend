@@ -1,10 +1,38 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { useLenderStore } from '../../stores/lenderStore'
-import { Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { useAccount, useReadContract, useChainId } from 'wagmi'
+import { Plus, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
+import { formatUnits } from 'viem'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI } from '../../constants/contracts'
 
 const LenderDashboard: React.FC = () => {
-  const { totalDeposited, totalYieldEarned, currentBalance, history } = useLenderStore()
+  const { address } = useAccount()
+  const chainId = useChainId()
+  const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
+
+  // Read: User Deposit (Principal)
+  const { data: userDepositData, isLoading: isLoadingDeposit } = useReadContract({
+    address: addresses.lendingPool as `0x${string}`,
+    abi: LENDING_POOL_ABI,
+    functionName: 'getUserDeposit',
+    args: [address!],
+    query: { enabled: !!address }
+  })
+
+  // Read: User Share Value (Current Value with Yield)
+  const { data: userShareValueData, isLoading: isLoadingValue } = useReadContract({
+    address: addresses.lendingPool as `0x${string}`,
+    abi: LENDING_POOL_ABI,
+    functionName: 'getUserShareValue',
+    args: [address!],
+    query: { enabled: !!address }
+  })
+
+  // Calculations - USDC uses 6 decimals
+  const principal = userDepositData ? parseFloat(formatUnits(userDepositData, 6)) : 0
+  const currentValue = userShareValueData ? parseFloat(formatUnits(userShareValueData, 6)) : 0
+  const yieldEarned = Math.max(0, currentValue - principal)
+  const apr = 20.0 // Hardcoded for now, or fetch from pool stats if available
 
   return (
     <div className="space-y-8">
@@ -22,54 +50,45 @@ const LenderDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="card-neo bg-black text-white">
           <h3 className="text-lg font-bold uppercase text-gray-400 mb-2">Current Balance</h3>
-          <p className="text-4xl font-black text-neo-white">${currentBalance.toLocaleString()}</p>
+          <p className="text-4xl font-black text-neo-white flex items-center gap-2">
+            ${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {isLoadingValue && <Loader2 className="animate-spin" size={20} />}
+          </p>
         </div>
         <div className="card-neo bg-white text-black">
           <h3 className="text-lg font-bold uppercase text-gray-500 mb-2">Total Deposited</h3>
-          <p className="text-4xl font-black">${totalDeposited.toLocaleString()}</p>
+          <p className="text-4xl font-black text-black flex items-center gap-2">
+            ${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {isLoadingDeposit && <Loader2 className="animate-spin" size={20} />}
+          </p>
         </div>
         <div className="card-neo bg-neo-yellow">
           <h3 className="text-lg font-bold uppercase text-black mb-2">Total Yield Earned</h3>
-          <p className="text-4xl font-black text-black">+${totalYieldEarned.toLocaleString()}</p>
+          <p className="text-4xl font-black text-black">
+            +${yieldEarned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         </div>
         <div className="card-neo bg-white">
           <h3 className="text-lg font-bold uppercase text-gray-500 mb-2">Current APR</h3>
-          <p className="text-4xl font-black text-neo-green">~20.0%</p>
+          <p className="text-4xl font-black text-neo-green">~{apr}%</p>
         </div>
       </div>
 
-      <h2 className="text-2xl font-black uppercase mt-8 mb-4">Withdrawal & Deposit History</h2>
-      
-      <div className="overflow-x-auto border-4 border-black shadow-neo">
-        <table className="w-full bg-white text-left">
-          <thead className="bg-black text-white font-black uppercase">
-            <tr>
-              <th className="p-4 border-b-4 border-black">Type</th>
-              <th className="p-4 border-b-4 border-black">Date</th>
-              <th className="p-4 border-b-4 border-black">Amount</th>
-              <th className="p-4 border-b-4 border-black">Status</th>
-            </tr>
-          </thead>
-          <tbody className="font-bold">
-            {history.map((tx) => (
-              <tr key={tx.id} className="border-b-2 border-gray-200 hover:bg-gray-50">
-                <td className="p-4 uppercase flex items-center gap-2">
-                   {tx.type === 'deposit' && <ArrowDownLeft className="text-neo-green" />}
-                   {tx.type === 'withdraw' && <ArrowUpRight className="text-neo-red" />}
-                   {tx.type === 'yield' && <Plus className="text-neo-yellow" />}
-                   {tx.type}
-                </td>
-                <td className="p-4">{new Date(tx.date).toLocaleDateString()}</td>
-                <td className={`p-4 text-lg ${tx.type === 'withdraw' ? 'text-red-600' : 'text-green-600'}`}>
-                    {tx.type === 'withdraw' ? '-' : '+'}${tx.amount.toLocaleString()}
-                </td>
-                <td className="p-4">
-                  <span className="bg-black text-white px-2 py-1 text-xs uppercase">{tx.status}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h2 className="text-2xl font-black uppercase mt-8 mb-4">Activities</h2>
+
+      <div className="bg-white border-4 border-black p-8 text-center text-gray-500">
+        <p className="font-bold text-lg">Transaction history is indexed on the blockchain.</p>
+        <p className="text-sm">Check your wallet or block explorer for detailed history.</p>
+        <div className="mt-4 flex justify-center gap-4">
+          <a
+            href={`https://sepolia-blockscout.lisk.com/address/${addresses.lendingPool}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline text-neo-blue font-bold hover:text-black"
+          >
+            View Lending Pool Contract
+          </a>
+        </div>
       </div>
     </div>
   )
