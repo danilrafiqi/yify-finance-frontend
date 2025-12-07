@@ -3,7 +3,7 @@ export interface MockNFT {
   name: string
   type: 'veAERO' | 'veVELO' | 'rwa' | 'generic'
   // Simplified networks
-  network: 'Base' | 'Optimism' | 'Ethereum' | 'Lisk'
+  network: 'Base' | 'Optimism' | 'Ethereum' | 'Lisk' | 'Foundry'
   price: number
   projectedYield: number // APR %
   imageUrl: string

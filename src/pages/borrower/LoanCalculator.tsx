@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from 'wagmi'
 import { toast } from 'react-hot-toast'
-import { Clock, DollarSign, Wallet } from 'lucide-react'
+import { Clock, DollarSign } from 'lucide-react'
 import { parseUnits, formatUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, COLLATERAL_MANAGER_ABI, ERC721_ABI, NFT_ORACLE_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, ERC721_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
 
 const LoanCalculator: React.FC = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const tokenIdFromUrl = searchParams.get('tokenId')
 
-  const { address } = useAccount()
+  useAccount() // Ensure we have account context if needed, though address not explicitly used here except for internal wagmi context likely
   const chainId = useChainId()
 
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
@@ -22,25 +22,27 @@ const LoanCalculator: React.FC = () => {
   // Read NFT Value from Oracle
   const { data: nftValueData } = useReadContract({
     address: addresses.nftOracle as `0x${string}`,
-    abi: NFT_ORACLE_ABI,
-    functionName: 'getNFTValue',
+    abi: SIMPLE_ORACLE_ABI,
+    functionName: 'getAssetPrice',
     args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId || '0')],
-    query: { enabled: !!nftTokenId && parseInt(nftTokenId) >= 0 }
+    query: { enabled: !!addresses.nftOracle }
   })
 
-  const nftValue = nftValueData ? parseFloat(formatUnits(nftValueData, 18)) : 0
-  const maxBorrow = nftValue * 0.25 // 25% LTV
+  // Oracle returns 18 decimals.
+  const nftValue = nftValueData ? parseFloat(formatUnits(nftValueData as bigint, 18)) : 0
+  const maxBorrow = nftValue * 0.50 // 50% LTV based on LoanManager logic
 
   // Read Pool Stats to check available liquidity
-  const { data: poolStats } = useReadContract({
+  // Read Pool Stats to check available liquidity
+  const { data: totalAssets } = useReadContract({
     address: addresses.lendingPool as `0x${string}`,
     abi: LENDING_POOL_ABI,
-    functionName: 'getPoolStats',
+    functionName: 'totalAssets',
     query: { enabled: true }
   })
 
   // USDC uses 6 decimals
-  const availableLiquidity = poolStats ? parseFloat(formatUnits(poolStats[0] - poolStats[1], 6)) : 0 // totalDeposited - totalBorrowed
+  const availableLiquidity = totalAssets ? parseFloat(formatUnits(totalAssets as bigint, 6)) : 0
 
   useEffect(() => {
     if (maxBorrow > 0) {
@@ -52,9 +54,6 @@ const LoanCalculator: React.FC = () => {
   const { writeContract: writeApprove, data: approveTxHash, isPending: isApproving, error: approveError } = useWriteContract()
   const { isSuccess: isApproveSuccess } = useWaitForTransactionReceipt({ hash: approveTxHash })
 
-  const { writeContract: writeDeposit, data: depositTxHash, isPending: isDepositing, error: depositError } = useWriteContract()
-  const { isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({ hash: depositTxHash })
-
   const { writeContract: writeBorrow, data: borrowTxHash, isPending: isBorrowing, error: borrowError } = useWriteContract()
   const { isSuccess: isBorrowSuccess } = useWaitForTransactionReceipt({ hash: borrowTxHash })
 
@@ -64,12 +63,6 @@ const LoanCalculator: React.FC = () => {
       toast.error(`Approve failed: ${approveError.message}`)
     }
   }, [approveError])
-
-  useEffect(() => {
-    if (depositError) {
-      toast.error(`Deposit failed: ${depositError.message}`)
-    }
-  }, [depositError])
 
   useEffect(() => {
     if (borrowError) {
@@ -89,13 +82,6 @@ const LoanCalculator: React.FC = () => {
   }, [isApproveSuccess])
 
   useEffect(() => {
-    if (isDepositSuccess) {
-      toast.success('NFT Deposited as Collateral!')
-      setCurrentStep('borrow')
-    }
-  }, [isDepositSuccess])
-
-  useEffect(() => {
     if (isBorrowSuccess) {
       toast.success(`Successfully borrowed $${loanAmount}!`)
       navigate('/borrower/dashboard')
@@ -107,18 +93,12 @@ const LoanCalculator: React.FC = () => {
       address: addresses.veNFT as `0x${string}`,
       abi: ERC721_ABI,
       functionName: 'setApprovalForAll',
-      args: [addresses.collateralManager as `0x${string}`, true]
+      args: [addresses.loanManager as `0x${string}`, true]
     })
   }
 
-  const handleDeposit = () => {
-    writeDeposit({
-      address: addresses.collateralManager as `0x${string}`,
-      abi: COLLATERAL_MANAGER_ABI,
-      functionName: 'depositNFT',
-      args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId)]
-    })
-  }
+  // Step 2: Borrow (Atomic: Deposit + Borrow)
+  // V2 Optimization: We don't need separate deposit. Borrow calls transferFrom.
 
   const handleBorrow = () => {
     if (loanAmount <= 0) {
@@ -130,10 +110,20 @@ const LoanCalculator: React.FC = () => {
       return
     }
     writeBorrow({
-      address: addresses.lendingPool as `0x${string}`,
-      abi: LENDING_POOL_ABI,
+      address: addresses.loanManager as `0x${string}`,
+      abi: [{
+        "type": "function",
+        "name": "borrow",
+        "inputs": [
+          { "name": "nftContract", "type": "address" },
+          { "name": "tokenId", "type": "uint256" },
+          { "name": "amount", "type": "uint256" }
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      }] as const,
       functionName: 'borrow',
-      args: [parseUnits(String(loanAmount), 6)] // USDC uses 6 decimals
+      args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId), parseUnits(String(loanAmount), 6)]
     })
   }
 
@@ -261,7 +251,7 @@ const LoanCalculator: React.FC = () => {
           <div className="card-neo bg-white space-y-4">
             <h3 className="text-xl font-black uppercase">Complete Borrowing Process</h3>
             <p className="text-sm text-gray-600 font-bold">
-              Follow these 3 steps: Approve → Deposit NFT → Borrow Funds
+              Follow these steps: Approve → Borrow (Atomic Deposit included)
             </p>
 
             <div className="space-y-3">
@@ -270,35 +260,25 @@ const LoanCalculator: React.FC = () => {
                 onClick={handleApprove}
                 disabled={isApproving || isApproveSuccess || currentStep !== 'approve'}
                 className={`w-full btn-neo text-lg ${isApproveSuccess ? 'bg-green-100 border-green-700' : 'bg-neo-yellow'
-                  } ${currentStep !== 'approve' ? 'opacity-50' : ''}`}
+                  } ${currentStep !== 'approve' && !isApproveSuccess ? 'opacity-50' : ''}`}
               >
                 {isApproving ? '1. Approving...' : isApproveSuccess ? '✓ 1. Approved' : '1. Approve NFT'}
               </button>
 
-              {/* Step 2: Deposit */}
-              <button
-                onClick={handleDeposit}
-                disabled={!isApproveSuccess || isDepositing || isDepositSuccess || currentStep !== 'deposit'}
-                className={`w-full btn-neo text-lg ${isDepositSuccess ? 'bg-green-100 border-green-700' : 'bg-neo-cyan'
-                  } ${currentStep !== 'deposit' ? 'opacity-50' : ''}`}
-              >
-                {isDepositing ? '2. Depositing NFT...' : isDepositSuccess ? '✓ 2. Deposited' : '2. Deposit as Collateral'}
-              </button>
-
-              {/* Step 3: Borrow */}
+              {/* Step 2: Borrow */}
               <button
                 onClick={handleBorrow}
-                disabled={!isDepositSuccess || isBorrowing || loanAmount <= 0 || currentStep !== 'borrow'}
-                className={`w-full btn-primary text-xl py-6 ${currentStep !== 'borrow' ? 'opacity-50' : ''
+                disabled={!isApproveSuccess || isBorrowing || loanAmount <= 0}
+                className={`w-full btn-primary text-xl py-6 ${!isApproveSuccess ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
               >
-                {isBorrowing ? '3. Processing Loan...' : `3. BORROW $${loanAmount}`}
+                {isBorrowing ? '2. Processing Loan...' : `2. BORROW $${loanAmount}`}
               </button>
             </div>
 
-            {(isDepositing || isBorrowing) && (
+            {isBorrowing && (
               <p className="text-center text-sm font-bold text-neo-blue animate-pulse">
-                Processing transaction... Please wait.
+                Processing Atomic Loan... (Deposit + Borrow in one tx)
               </p>
             )}
           </div>

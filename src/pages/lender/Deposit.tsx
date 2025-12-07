@@ -101,7 +101,13 @@ const LenderDeposit: React.FC = () => {
     if (!address) return
     writeMint({
       address: addresses.usdc as `0x${string}`,
-      abi: ERC20_ABI,
+      abi: [{
+        "type": "function",
+        "name": "mintPublic",
+        "inputs": [{ "name": "to", "type": "address" }, { "name": "amount", "type": "uint256" }],
+        "outputs": [],
+        "stateMutability": "nonpayable"
+      }] as const,
       functionName: 'mintPublic',
       args: [address, parseUnits('1000', 6)] // USDC uses 6 decimals
     })

@@ -1,47 +1,62 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount, useReadContract, useChainId } from 'wagmi'
-import { Plus, Loader2, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
+import { Plus, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
 import { formatUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, COLLATERAL_MANAGER_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID } from '../../constants/contracts'
 
 const BorrowerDashboard: React.FC = () => {
   const { address } = useAccount()
   const chainId = useChainId()
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
 
-  // Get Borrowing Info
-  const { data: borrowingInfo, isLoading: isLoadingInfo } = useReadContract({
-    address: addresses.lendingPool as `0x${string}`,
-    abi: LENDING_POOL_ABI,
-    functionName: 'getUserBorrowingInfo',
-    args: [address!],
-    query: { enabled: !!address }
+  // Get User Positions from Lens
+  const { data: userPositions } = useReadContract({
+    address: addresses.lens as `0x${string}`,
+    abi: [{
+      "type": "function",
+      "name": "getUserLoans",
+      "inputs": [
+        { "name": "loanManager", "type": "address" },
+        { "name": "user", "type": "address" }
+      ],
+      "outputs": [
+        {
+          "components": [
+            { "name": "loanId", "type": "bytes32" },
+            { "name": "borrower", "type": "address" },
+            { "name": "nftContract", "type": "address" },
+            { "name": "tokenId", "type": "uint256" },
+            { "name": "totalBorrowed", "type": "uint256" },
+            { "name": "remainingDebt", "type": "uint256" },
+            { "name": "isActive", "type": "bool" }
+          ],
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view"
+    }] as const,
+    functionName: 'getUserLoans',
+    args: [addresses.loanManager, address!],
+    query: { enabled: !!address && !!addresses.loanManager }
   })
 
-  // Get Deposited Collaterals
-  const { data: userCollaterals } = useReadContract({
-    address: addresses.collateralManager as `0x${string}`,
-    abi: COLLATERAL_MANAGER_ABI,
-    functionName: 'getUserCollaterals',
-    args: [address!],
-    query: { enabled: !!address }
-  })
+  // Calculate Totals
+  const totalDebt = userPositions?.reduce((acc, pos) => acc + parseFloat(formatUnits(pos.remainingDebt, 6)), 0) || 0
+  // Lens V2 doesn't return value yet, assume 0 or ideally fetch from Oracle. For now 0 to fix crash/display.
+  const totalCollateral = 0
 
-  // Parse Data - Mixed decimals issue
-  // collateralValue: 18 decimals (from NFT Oracle)
-  // currentDebt: 6 decimals (USDC)
-  // maxBorrow & available: 18 decimals (calculated from collateralValue in contract, but should be USDC)
-  const collateralValue = borrowingInfo ? parseFloat(formatUnits(borrowingInfo[0], 18)) : 0
-  const currentDebt = borrowingInfo ? parseFloat(formatUnits(borrowingInfo[1], 6)) : 0
-  // Contract returns maxBorrow in 18 decimals, convert to 6 for USDC
-  const maxBorrow = borrowingInfo ? parseFloat(formatUnits(borrowingInfo[2], 18)) : 0
-  const availableToBorrow = borrowingInfo ? parseFloat(formatUnits(borrowingInfo[3], 18)) : 0
+  // Use first active position for main card display (simplified for MVP)
+  const activePosition = userPositions?.find(p => p.remainingDebt > 0n)
+  const activeDebt = activePosition ? parseFloat(formatUnits(activePosition.remainingDebt, 6)) : 0
+  const activeCollateral = 0 // Placeholder
+  const maxBorrow = activeCollateral * 0.25 // 25% LTV
+  const availableToBorrow = Math.max(0, maxBorrow - activeDebt)
 
-  const depositedTokenIds = userCollaterals ? userCollaterals[1].map(id => id.toString()) : []
-  const depositedContracts = userCollaterals ? userCollaterals[0] : []
-
-  const hasActiveLoan = currentDebt > 0
+  const depositedTokenIds = userPositions?.map(p => p.tokenId.toString()) || []
+  const depositedContracts = userPositions?.map(p => p.nftContract) || []
+  const hasActiveLoan = activePosition !== undefined
 
   return (
     <div className="space-y-8">
@@ -56,145 +71,108 @@ const BorrowerDashboard: React.FC = () => {
       </div>
 
       {/* Active Loan Positions */}
-      {hasActiveLoan ? (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-black uppercase">Active Positions</h2>
+      {/* Loan List */}
+      <div className="space-y-6">
+        {userPositions && userPositions.length > 0 ? (
+          userPositions.map((position) => {
+            const loanId = position.loanId
+            const tokenId = position.tokenId.toString()
+            const contractAddr = position.nftContract
 
-          {/* Main Loan Card */}
-          <div className="card-neo bg-white hover:shadow-neo-lg transition-shadow">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Loan Stats */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-2xl font-black uppercase">Loan Position</h3>
-                    <span className="bg-green-100 text-green-700 font-bold px-2 py-1 text-xs uppercase rounded mt-2 inline-block">
-                      Active
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gray-500 uppercase">Outstanding Debt</p>
-                    <p className="text-4xl font-black text-neo-red">${currentDebt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            // Stats
+            const debt = parseFloat(formatUnits(position.remainingDebt, 6))
+            const initialLoan = parseFloat(formatUnits(position.totalBorrowed, 6))
+            const repaid = initialLoan - debt
+            const progress = initialLoan > 0 ? (repaid / initialLoan) * 100 : 0
+
+            // Note: Value is 0 from Lens currently, would need separate fetch or update Lens
+            // For UI completeness matching the request, we display what we have.
+            const collateralValue = 0
+
+            return (
+              <div key={loanId} className="card-neo bg-white hover:shadow-neo-lg transition-all border-4 border-black p-0 overflow-hidden flex flex-col md:flex-row">
+                {/* Left: NFT Image/Icon */}
+                <div className="w-full md:w-48 aspect-square bg-neo-red flex items-center justify-center border-b-4 md:border-b-0 md:border-r-4 border-black p-4">
+                  <div className="text-center text-white">
+                    <p className="font-black text-2xl uppercase">veNFT</p>
+                    <p className="font-bold">#{tokenId}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t-2 border-gray-100">
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Collateral Value</p>
-                    <p className="text-xl font-black">${collateralValue.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Max Borrow (25% LTV)</p>
-                    <p className="text-xl font-black">${maxBorrow.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Available</p>
-                    <p className="text-xl font-black text-neo-green">${availableToBorrow.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Current LTV</p>
-                    <p className="text-xl font-black text-neo-blue">
-                      {collateralValue > 0 ? ((currentDebt / collateralValue) * 100).toFixed(1) : 0}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">NFTs Locked</p>
-                    <p className="text-xl font-black">{depositedTokenIds.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase">Health</p>
-                    <p className="text-xl font-black text-neo-green">Healthy</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col gap-3 justify-center border-l-2 border-gray-100 pl-6">
-                <Link
-                  to="/borrower/select-collateral"
-                  className="btn-neo bg-neo-green text-center w-full"
-                >
-                  Add More Collateral
-                </Link>
-                <Link
-                  to="/borrower/select-collateral"
-                  className="btn-neo bg-neo-blue text-center w-full"
-                >
-                  Borrow More
-                </Link>
-                <div className="pt-2 border-t-2 border-gray-100">
-                  <p className="text-xs font-bold text-gray-500">
-                    <AlertCircle size={12} className="inline mr-1" />
-                    Repaid automatically via yield
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Collateral NFTs */}
-          {depositedTokenIds.length > 0 && (
-            <div>
-              <h3 className="text-xl font-black uppercase mb-4">Locked Collateral ({depositedTokenIds.length})</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {depositedTokenIds.map((id, index) => (
-                  <Link
-                    key={`${id}-${index}`}
-                    to={`/borrower/${id}`}
-                    className="card-neo bg-white hover:shadow-neo-lg transition-all hover:scale-105 cursor-pointer p-4"
-                  >
-                    <div className="aspect-square bg-gray-200 border-2 border-black flex items-center justify-center mb-2">
-                      <span className="font-black text-lg text-gray-400">#{id}</span>
+                {/* Right: Content */}
+                <div className="flex-1 p-6 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-2xl font-black uppercase">veNFT #{tokenId}</h3>
+                      <div className="flex gap-2 mt-1">
+                        <span className="bg-black text-white text-xs font-bold px-2 py-1 uppercase rounded">
+                          {contractAddr.slice(0, 6)}...{contractAddr.slice(-4)}
+                        </span>
+                        {position.isActive && (
+                          <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 uppercase rounded">
+                            Active
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm font-bold text-center">Token #{id}</p>
-                    <p className="text-xs text-gray-500 text-center truncate">
-                      {depositedContracts[index]?.slice(0, 6)}...{depositedContracts[index]?.slice(-4)}
-                    </p>
-                  </Link>
-                ))}
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-gray-500 uppercase">Remaining Debt</p>
+                      <p className="text-3xl font-black text-neo-red">
+                        ${debt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span>Repayment Progress</span>
+                      <span>{progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full h-4 bg-gray-200 border-2 border-black rounded-full overflow-hidden relative">
+                      <div
+                        className="h-full bg-neo-green absolute left-0 top-0 transition-all duration-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Footer Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t-2 border-gray-100">
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase">Initial Loan</p>
+                      <p className="font-black text-lg">${initialLoan.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase">Collateral Value</p>
+                      <p className="font-black text-lg text-gray-400">$---</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 uppercase">Yield Generated</p>
+                      <p className="font-black text-lg text-neo-green">${repaid.toLocaleString()}</p>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <Link to={`/borrower/${tokenId}`} className="btn-neo bg-white text-xs px-4 py-2 h-auto">
+                        View Details
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="border-4 border-black border-dashed bg-gray-50 py-20 text-center">
-          <DollarSign size={64} className="mx-auto mb-4 text-gray-300" />
-          <h3 className="text-2xl font-black uppercase mb-4 text-gray-400">No Active Loans</h3>
-          <p className="font-bold text-gray-500 mb-8">
-            Start by selecting an NFT from your wallet to use as collateral.
-          </p>
-          <Link to="/borrower/select-collateral" className="btn-primary inline-flex items-center gap-2">
-            <Plus size={20} /> Create Your First Loan
-          </Link>
-        </div>
-      )}
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card-neo bg-black text-white">
-          <h3 className="text-sm font-bold uppercase text-gray-400 mb-2">Total Borrowed</h3>
-          <p className="text-3xl font-black flex items-center gap-2">
-            ${currentDebt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            {isLoadingInfo && <Loader2 className="animate-spin" size={20} />}
-          </p>
-        </div>
-
-        <div className="card-neo bg-white">
-          <h3 className="text-sm font-bold uppercase text-gray-500 mb-2">Total Collateral</h3>
-          <p className="text-3xl font-black">
-            ${collateralValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-
-        <div className="card-neo bg-neo-green text-black">
-          <h3 className="text-sm font-bold uppercase mb-2 flex items-center gap-1">
-            <TrendingUp size={16} /> Borrowing Power
-          </h3>
-          <p className="text-3xl font-black">
-            ${availableToBorrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </p>
-        </div>
+            )
+          })
+        ) : (
+          <div className="border-4 border-black border-dashed bg-gray-50 py-20 text-center">
+            <DollarSign size={64} className="mx-auto mb-4 text-gray-300" />
+            <h3 className="text-2xl font-black uppercase mb-4 text-gray-400">No Active Loans</h3>
+            <Link to="/borrower/select-collateral" className="btn-primary inline-flex items-center gap-2">
+              <Plus size={20} /> Create Your First Loan
+            </Link>
+          </div>
+        )}
       </div>
+
+
     </div>
   )
 }

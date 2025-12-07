@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAccount, useChainId, useSwitchChain, useWriteContract, useReadContracts, useReadContract } from 'wagmi'
-import { ArrowRight, Plus, Wallet, Lock } from 'lucide-react'
-import { parseUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, ERC721_ABI } from '../../constants/contracts'
+import { useAccount, useChainId, useSwitchChain, useWriteContract, useReadContracts, useReadContract, usePublicClient } from 'wagmi'
+import { ArrowRight, Plus, Wallet, Lock, DollarSign } from 'lucide-react'
+import { parseUnits, parseEther } from 'viem'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, VENFT_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
 import { toast } from 'react-hot-toast'
 
 // Simple NFT interface for wallet NFTs
@@ -18,57 +18,79 @@ const CollateralSelection: React.FC = () => {
   const { address } = useAccount()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
+  const publicClient = usePublicClient()
+  const [mockPrice, setMockPrice] = useState<string>('5000') // Default 5000
 
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
 
   // Mint Mock NFT
-  const { writeContract: writeMint, isPending: isMinting } = useWriteContract()
+  const { writeContractAsync: writeMint, isPending: isMinting } = useWriteContract()
 
-  // Strategy: Check ownership of token IDs 1-20 (reasonable range for testing)
-  const tokenIdsToCheck = useMemo(() => Array.from({ length: 20 }, (_, i) => i + 1), [])
+  // Fetch Total Supply to avoid querying non-existent tokens
+  const { data: totalSupply } = useReadContract({
+    address: addresses.veNFT as `0x${string}`,
+    abi: VENFT_ABI,
+    functionName: 'totalSupply',
+    query: { refetchInterval: 2000 }
+  })
+
+  // Dynamic Scanning based on Total Supply
+  const tokenIdsToCheck = useMemo(() => {
+    if (!totalSupply) return []
+    const limit = Number(totalSupply)
+    return Array.from({ length: limit }, (_, i) => i)
+  }, [totalSupply])
 
   const ownershipChecks = useReadContracts({
     contracts: tokenIdsToCheck.map(tokenId => ({
       address: addresses.veNFT as `0x${string}`,
-      abi: [
-        {
-          "type": "function",
-          "name": "ownerOf",
-          "inputs": [{ "name": "tokenId", "type": "uint256" }],
-          "outputs": [{ "name": "", "type": "address" }],
-          "stateMutability": "view"
-        }
-      ] as const,
+      abi: VENFT_ABI,
       functionName: 'ownerOf',
       args: [BigInt(tokenId)]
     })),
-    query: { enabled: !!address }
+    query: { enabled: !!address && tokenIdsToCheck.length > 0, refetchInterval: 2000 }
   })
 
-  // Fetch deposited NFTs from CollateralManager
-  const { data: depositedCollaterals } = useReadContract({
-    address: addresses.collateralManager as `0x${string}`,
+  // ... (Lens fetching remains the same) ...
+
+  const { data: userLoans } = useReadContract({
+    // ... (keep existing Lens useReadContract) ...
+    address: addresses.lens as `0x${string}`, // Use Lens in V2
     abi: [
       {
         "type": "function",
-        "name": "getUserCollaterals",
-        "inputs": [{ "name": "user", "type": "address" }],
+        "name": "getUserLoans",
+        "inputs": [
+          { "name": "loanManager", "type": "address" },
+          { "name": "user", "type": "address" }
+        ],
         "outputs": [
-          { "name": "nftContracts", "type": "address[]" },
-          { "name": "tokenIds", "type": "uint256[]" }
+          {
+            "components": [
+              { "name": "loanId", "type": "bytes32" },
+              { "name": "borrower", "type": "address" },
+              { "name": "nftContract", "type": "address" },
+              { "name": "tokenId", "type": "uint256" },
+              { "name": "totalBorrowed", "type": "uint256" },
+              { "name": "remainingDebt", "type": "uint256" },
+              { "name": "isActive", "type": "bool" }
+            ],
+            "name": "",
+            "type": "tuple[]"
+          }
         ],
         "stateMutability": "view"
       }
     ] as const,
-    functionName: 'getUserCollaterals',
-    args: [address!],
-    query: { enabled: !!address }
+    functionName: 'getUserLoans',
+    args: [addresses.loanManager, address!],
+    query: { enabled: !!address && !!addresses.loanManager }
   })
 
-  // Use useMemo to prevent infinite loop
+  // Use useMemo to extract token IDs from Loans
   const depositedTokenIds = useMemo(() => {
-    return depositedCollaterals ? depositedCollaterals[1].map((id: bigint) => id.toString()) : []
-  }, [depositedCollaterals])
+    return userLoans ? userLoans.map(loan => loan.tokenId.toString()) : []
+  }, [userLoans])
 
   // Combine wallet NFTs with deposited NFTs
   const [walletNFTs, setWalletNFTs] = useState<WalletNFT[]>([])
@@ -82,26 +104,22 @@ const CollateralSelection: React.FC = () => {
         if (result.status === 'success' && result.result) {
           const owner = result.result as string
           if (owner.toLowerCase() === address.toLowerCase()) {
-            ownedNFTs.push({
-              tokenId: (index + 1).toString(),
-              contract: addresses.veNFT,
-              name: `veNFT #${index + 1}`
-            })
+
+            // Only add if NOT deposited (UX Request)
+            const tokenIdStr = index.toString()
+            if (!depositedTokenIds.includes(tokenIdStr)) {
+              ownedNFTs.push({
+                tokenId: tokenIdStr,
+                contract: addresses.veNFT,
+                name: `veNFT #${index}`
+              })
+            }
           }
         }
       })
 
-      // Add deposited NFTs (they're owned by CollateralManager but belong to user)
-      depositedTokenIds.forEach(tokenId => {
-        // Only add if not already in the list
-        if (!ownedNFTs.find(nft => nft.tokenId === tokenId)) {
-          ownedNFTs.push({
-            tokenId,
-            contract: addresses.veNFT,
-            name: `veNFT #${tokenId}`
-          })
-        }
-      })
+      // UX Update: Do NOT add deposited NFTs to the list
+      // Previously we merged them, now we just show wallet items available for collateral.
 
       setWalletNFTs(ownedNFTs)
     }
@@ -109,18 +127,64 @@ const CollateralSelection: React.FC = () => {
 
   const [selectedNFT, setSelectedNFT] = useState<WalletNFT | null>(null)
 
-  const handleMintMockNFT = () => {
+  const handleMintMockNFT = async () => {
     if (!address) {
       toast.error('Please connect your wallet first')
       return
     }
-    writeMint({
-      address: addresses.veNFT as `0x${string}`,
-      abi: ERC721_ABI,
-      functionName: 'mint',
-      args: [address, parseUnits('1000', 18), BigInt(63072000)] // 1000 voting power, 2 years lock
-    })
-    toast.success('Minting Mock NFT... Check your wallet in a moment!')
+
+    if (!mockPrice || isNaN(Number(mockPrice))) {
+      toast.error('Please enter a valid price')
+      return
+    }
+
+    try {
+      // 1. Mint
+      toast.loading('Step 1/2: Minting NFT...', { id: 'mint-toast' })
+      const mintHash = await writeMint({
+        address: addresses.veNFT as `0x${string}`,
+        abi: VENFT_ABI,
+        functionName: 'mint',
+        args: [address, parseUnits('1000', 18), BigInt(63072000)]
+      })
+
+      toast.loading('Waiting for confirmation...', { id: 'mint-toast' })
+      const receipt = await publicClient?.waitForTransactionReceipt({ hash: mintHash })
+
+      if (!receipt) throw new Error("Failed to get receipt")
+
+      // 2. Extract Token ID from Transfer event (Topic 3 is tokenId)
+      // Filter for Transfer event to user
+      const transferLog = receipt.logs.find(log =>
+        log.address.toLowerCase() === addresses.veNFT.toLowerCase() &&
+        log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' // Transfer sig
+      )
+
+      if (!transferLog || !transferLog.topics[3]) {
+        throw new Error("Could not find Token ID in logs")
+      }
+
+      const mintedId = BigInt(transferLog.topics[3])
+      console.log("Minted ID:", mintedId.toString())
+
+      // 3. Set Price
+      toast.loading(`Step 2/2: Setting Price to $${mockPrice}...`, { id: 'mint-toast' })
+
+      const priceInWei = parseEther(mockPrice) // Oracle uses 1e18 for price
+
+      await writeMint({
+        address: addresses.nftOracle as `0x${string}`,
+        abi: SIMPLE_ORACLE_ABI,
+        functionName: 'setTokenPrice',
+        args: [addresses.veNFT, mintedId, priceInWei]
+      })
+
+      toast.success(`Success! NFT #${mintedId} minted with value $${mockPrice}`, { id: 'mint-toast' })
+
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.shortMessage || 'Minting failed', { id: 'mint-toast' })
+    }
   }
 
   const handleContinue = () => {
@@ -134,7 +198,8 @@ const CollateralSelection: React.FC = () => {
     { name: 'Base', id: 84532 },
     { name: 'Optimism', id: 11155420 },
     { name: 'Lisk', id: 4202 },
-    { name: 'Ethereum', id: 11155111 }
+    { name: 'Ethereum', id: 11155111 },
+    { name: 'Foundry', id: 31337 }
   ]
 
   const getNetworkCategory = (id: number) => {
@@ -146,6 +211,7 @@ const CollateralSelection: React.FC = () => {
       case 4202: return 'Lisk'
       case 1:
       case 11155111: return 'Ethereum'
+      case 31337: return 'Foundry'
       default: return 'Unknown'
     }
   }
@@ -158,15 +224,32 @@ const CollateralSelection: React.FC = () => {
         <h1 className="text-4xl md:text-5xl font-black uppercase">Select Collateral</h1>
         <p className="text-xl font-bold text-gray-600">Choose an NFT from your wallet to use as collateral.</p>
 
-        {/* Mint Mock NFT Button */}
-        <button
-          onClick={handleMintMockNFT}
-          disabled={isMinting}
-          className="btn-neo bg-neo-yellow inline-flex items-center gap-2 mx-auto"
-        >
-          <Plus size={18} />
-          {isMinting ? 'Minting Mock NFT...' : 'Mint Mock NFT (For Testing)'}
-        </button>
+        {/* Mint Mock NFT Button with Price Input */}
+        <div className="max-w-md mx-auto bg-gray-100 p-4 rounded-xl border-2 border-gray-200">
+          <label className="block text-sm font-bold text-gray-500 mb-2">Set Mock Value ($)</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <DollarSign className="absolute left-3 top-3 text-gray-400" size={20} />
+              <input
+                type="number"
+                value={mockPrice}
+                onChange={(e) => setMockPrice(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 font-bold rounded-lg border-2 border-gray-300 focus:border-black outline-none"
+              />
+            </div>
+            <button
+              onClick={handleMintMockNFT}
+              disabled={isMinting}
+              className="btn-neo bg-neo-yellow inline-flex items-center gap-2 whitespace-nowrap"
+            >
+              <Plus size={18} />
+              {isMinting ? 'Processing...' : 'Mint & Set Price'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            1. Mint NFT → 2. Set Price (2 Transactions)
+          </p>
+        </div>
       </div>
 
       {/* Network Filter */}
