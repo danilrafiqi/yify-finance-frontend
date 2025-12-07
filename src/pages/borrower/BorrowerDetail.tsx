@@ -113,10 +113,12 @@ const BorrowerDetail: React.FC = () => {
   }
 
   // Derived Values
+  const totalBorrowed = parseFloat(formatUnits(position.totalBorrowed, 6))
   const remainingDebt = parseFloat(formatUnits(position.remainingDebt, 6))
-  // Mock yield generated for now as it's not on the position struct directly (requires indexer or different call)
-  const yieldGenerated = 0
-  const repaymentProgress = remainingDebt > 0 ? 0 : 100 // Simplified
+  const repaid = totalBorrowed - remainingDebt
+  const yieldGenerated = repaid // Yield generated equals amount repaid
+  const repaymentProgress = totalBorrowed > 0 ? (repaid / totalBorrowed) * 100 : 0
+
 
   const handleWithdraw = async () => {
     if (remainingDebt > 0.01) { // Tolerance for dust

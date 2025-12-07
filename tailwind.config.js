@@ -10,8 +10,10 @@ export default {
         'neo-red': '#FF0000',
         'neo-yellow': '#FFFF00',
         'neo-cyan': '#00FFFF',
+        'neo-blue': '#0000FF',
         'neo-magenta': '#FF00FF',
         'neo-lime': '#00FF00',
+        'neo-green': '#00D084', // Softer green for progress bars
         'neo-black': '#000000',
         'neo-white': '#FFFFFF',
       },

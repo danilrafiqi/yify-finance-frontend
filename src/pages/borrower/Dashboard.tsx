@@ -140,7 +140,7 @@ const BorrowerDashboard: React.FC = () => {
                   {/* Footer Stats */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t-2 border-gray-100">
                     <div>
-                      <p className="text-xs font-bold text-gray-500 uppercase">Initial Loan</p>
+                      <p className="text-xs font-bold text-gray-500 uppercase">Total Borrowed</p>
                       <p className="font-black text-lg">${initialLoan.toLocaleString()}</p>
                     </div>
                     <div>
