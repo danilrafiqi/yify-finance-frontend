@@ -6,12 +6,14 @@ interface PlatformStatsState {
   activeUsers: number
   totalBorrow: number
   availableFund: number
+  setPlatformStats: (stats: Partial<Omit<PlatformStatsState, 'setPlatformStats'>>) => void
 }
 
-export const usePlatformStatsStore = create<PlatformStatsState>(() => ({
-  tvl: 2500000, // $2.5M
-  totalLoans: 150,
-  activeUsers: 89,
-  totalBorrow: 1200000, // $1.2M
-  availableFund: 1300000 // $1.3M
+export const usePlatformStatsStore = create<PlatformStatsState>((set) => ({
+  tvl: 0,
+  totalLoans: 0,
+  activeUsers: 0,
+  totalBorrow: 0,
+  availableFund: 0,
+  setPlatformStats: (stats) => set((state) => ({ ...state, ...stats }))
 }))
