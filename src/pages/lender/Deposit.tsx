@@ -83,7 +83,7 @@ const LenderDeposit: React.FC = () => {
       address: addresses.usdc as `0x${string}`,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [addresses.lendingPool as `0x${string}`, parseUnits(amount.toString(), balanceData?.decimals || 18)]
+      args: [addresses.lendingPool as `0x${string}`, parseUnits(amount.toString(), 6)]
     })
   }
 
@@ -93,7 +93,7 @@ const LenderDeposit: React.FC = () => {
       address: addresses.lendingPool as `0x${string}`,
       abi: LENDING_POOL_ABI,
       functionName: 'deposit',
-      args: [parseUnits(amount.toString(), balanceData?.decimals || 18)]
+      args: [parseUnits(amount.toString(), 6)]
     })
   }
 

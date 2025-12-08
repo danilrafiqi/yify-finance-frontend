@@ -4,7 +4,7 @@ import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadCont
 import { toast } from 'react-hot-toast'
 import { Clock, DollarSign } from 'lucide-react'
 import { parseUnits, formatUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, ERC721_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, LOAN_MANAGER_ABI, ERC721_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
 
 const LoanCalculator: React.FC = () => {
   const [searchParams] = useSearchParams()
@@ -111,17 +111,7 @@ const LoanCalculator: React.FC = () => {
     }
     writeBorrow({
       address: addresses.loanManager as `0x${string}`,
-      abi: [{
-        "type": "function",
-        "name": "borrow",
-        "inputs": [
-          { "name": "nftContract", "type": "address" },
-          { "name": "tokenId", "type": "uint256" },
-          { "name": "amount", "type": "uint256" }
-        ],
-        "outputs": [],
-        "stateMutability": "nonpayable"
-      }] as const,
+      abi: LOAN_MANAGER_ABI,
       functionName: 'borrow',
       args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId), parseUnits(String(loanAmount), 6)]
     })

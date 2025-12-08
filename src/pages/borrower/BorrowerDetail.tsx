@@ -30,9 +30,10 @@ const BorrowerDetail: React.FC = () => {
   const userPositions = userPositionsResult as any[] | undefined;
 
   // Find the position matching the idnft (Token ID) passed in URL
+  // Filter only ACTIVE loans
   const position = useMemo(() => {
     if (!userPositions || !idnft) return undefined;
-    return userPositions.find((p: any) => p.tokenId.toString() === idnft)
+    return userPositions.find((p: any) => p.tokenId.toString() === idnft && p.isActive)
   }, [userPositions, idnft])
 
   // Helper for NFT metadata

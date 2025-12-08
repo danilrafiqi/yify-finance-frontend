@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount, useReadContract, useChainId } from 'wagmi'
-import { Plus, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
+import { Plus, DollarSign } from 'lucide-react'
 import { formatUnits } from 'viem'
 import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID } from '../../constants/contracts'
 
@@ -42,21 +42,19 @@ const BorrowerDashboard: React.FC = () => {
     query: { enabled: !!address && !!addresses.loanManager }
   })
 
-  // Calculate Totals
-  const totalDebt = userPositions?.reduce((acc, pos) => acc + parseFloat(formatUnits(pos.remainingDebt, 6)), 0) || 0
-  // Lens V2 doesn't return value yet, assume 0 or ideally fetch from Oracle. For now 0 to fix crash/display.
-  const totalCollateral = 0
+  // Deduplicate loans by loanId (smart contract can have duplicate entries in userLoans array)
+  const uniqueActiveLoans = React.useMemo(() => {
+    if (!userPositions) return []
 
-  // Use first active position for main card display (simplified for MVP)
-  const activePosition = userPositions?.find(p => p.remainingDebt > 0n)
-  const activeDebt = activePosition ? parseFloat(formatUnits(activePosition.remainingDebt, 6)) : 0
-  const activeCollateral = 0 // Placeholder
-  const maxBorrow = activeCollateral * 0.25 // 25% LTV
-  const availableToBorrow = Math.max(0, maxBorrow - activeDebt)
-
-  const depositedTokenIds = userPositions?.map(p => p.tokenId.toString()) || []
-  const depositedContracts = userPositions?.map(p => p.nftContract) || []
-  const hasActiveLoan = activePosition !== undefined
+    const seen = new Set<string>()
+    return userPositions.filter(p => {
+      if (!p.isActive) return false
+      const loanIdStr = p.loanId.toString()
+      if (seen.has(loanIdStr)) return false
+      seen.add(loanIdStr)
+      return true
+    })
+  }, [userPositions])
 
   return (
     <div className="space-y-8">
@@ -73,8 +71,8 @@ const BorrowerDashboard: React.FC = () => {
       {/* Active Loan Positions */}
       {/* Loan List */}
       <div className="space-y-6">
-        {userPositions && userPositions.length > 0 ? (
-          userPositions.map((position) => {
+        {uniqueActiveLoans.length > 0 ? (
+          uniqueActiveLoans.map((position) => {
             const loanId = position.loanId
             const tokenId = position.tokenId.toString()
             const contractAddr = position.nftContract
@@ -84,10 +82,6 @@ const BorrowerDashboard: React.FC = () => {
             const initialLoan = parseFloat(formatUnits(position.totalBorrowed, 6))
             const repaid = initialLoan - debt
             const progress = initialLoan > 0 ? (repaid / initialLoan) * 100 : 0
-
-            // Note: Value is 0 from Lens currently, would need separate fetch or update Lens
-            // For UI completeness matching the request, we display what we have.
-            const collateralValue = 0
 
             return (
               <div key={loanId} className="card-neo bg-white hover:shadow-neo-lg transition-all border-4 border-black p-0 overflow-hidden flex flex-col md:flex-row">

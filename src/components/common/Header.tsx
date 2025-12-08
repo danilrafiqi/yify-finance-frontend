@@ -1,10 +1,13 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useChainId } from 'wagmi'
 // import NetworkSwitcher from './NetworkSwitcher'
 import WalletConnection from './WalletConnection'
 
 const Header: React.FC = () => {
   const location = useLocation()
+  const chainId = useChainId()
+  const isLocalChain = chainId === 31337
 
   const isActive = (path: string) => {
     return location.pathname.startsWith(path)
@@ -42,6 +45,14 @@ const Header: React.FC = () => {
             >
               Help
             </Link>
+            {isLocalChain && (
+              <Link
+                to="/admin"
+                className={`font-bold uppercase tracking-wide hover:text-neo-red transition-colors ${isActive('/admin') ? 'underline decoration-4 decoration-neo-red' : ''}`}
+              >
+                Admin
+              </Link>
+            )}
           </nav>
 
           {/* Actions */}

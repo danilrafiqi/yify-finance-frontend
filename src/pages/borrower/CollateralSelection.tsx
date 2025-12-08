@@ -87,9 +87,9 @@ const CollateralSelection: React.FC = () => {
     query: { enabled: !!address && !!addresses.loanManager }
   })
 
-  // Use useMemo to extract token IDs from Loans
+  // Use useMemo to extract token IDs from ACTIVE Loans only
   const depositedTokenIds = useMemo(() => {
-    return userLoans ? userLoans.map(loan => loan.tokenId.toString()) : []
+    return userLoans ? userLoans.filter(loan => loan.isActive).map(loan => loan.tokenId.toString()) : []
   }, [userLoans])
 
   // Combine wallet NFTs with deposited NFTs

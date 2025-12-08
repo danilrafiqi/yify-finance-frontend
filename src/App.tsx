@@ -11,6 +11,7 @@ import CollateralSelection from './pages/borrower/CollateralSelection'
 import LoanCalculator from './pages/borrower/LoanCalculator'
 import LenderDashboard from './pages/lender/Dashboard'
 import LenderDeposit from './pages/lender/Deposit'
+import AdminPage from './pages/admin/Admin'
 
 function AppContent() {
   return (
@@ -22,16 +23,19 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/help" element={<HelpFAQ />} />
-          
+
           {/* Borrower Flow */}
           <Route path="/borrower/dashboard" element={<BorrowerDashboard />} />
           <Route path="/borrower/:idnft" element={<BorrowerDetail />} />
           <Route path="/borrower/select-collateral" element={<CollateralSelection />} />
           <Route path="/borrower/calculator" element={<LoanCalculator />} />
-          
+
           {/* Lender Flow */}
           <Route path="/lender/dashboard" element={<LenderDashboard />} />
           <Route path="/lender/deposit" element={<LenderDeposit />} />
+
+          {/* Admin */}
+          <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>
 
