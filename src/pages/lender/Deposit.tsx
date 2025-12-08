@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useLenderStore } from '../../stores/lenderStore'
+
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from 'wagmi'
 import { toast } from 'react-hot-toast'
 import { ArrowRight, Wallet, CheckCircle, Coins } from 'lucide-react'
@@ -9,7 +9,7 @@ import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI, ERC20_ABI 
 
 const LenderDeposit: React.FC = () => {
   const navigate = useNavigate()
-  const { deposit: storeDeposit } = useLenderStore()
+
   const { address } = useAccount()
   const chainId = useChainId()
 
@@ -65,10 +65,9 @@ const LenderDeposit: React.FC = () => {
     if (isDepositSuccess) {
       toast.dismiss()
       toast.success(`Successfully deposited ${amount.toLocaleString()} ${balanceSymbol}`)
-      storeDeposit(amount) // Update local store state for UI consistency
       navigate('/lender/dashboard')
     }
-  }, [isWaitingDeposit, isDepositSuccess, amount, balanceSymbol, navigate, storeDeposit])
+  }, [isWaitingDeposit, isDepositSuccess, amount, balanceSymbol, navigate])
 
   useEffect(() => {
     if (depositError) {

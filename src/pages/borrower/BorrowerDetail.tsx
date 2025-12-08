@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useNFTStore } from '../../stores/nftStore'
-import { generateDividendData, MockNFT } from '../../utils/mockData'
+
+import { NFT } from '../../utils/types'
 import NFTCard from '../../components/common/NFTCard'
 import { ArrowLeft, Wallet, Settings, AlertTriangle, FileText, Vote, BarChart3, ArrowUpRight, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
@@ -13,7 +14,7 @@ import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LOAN_MANAGER_ABI, LENS_ABI }
 const BorrowerDetail: React.FC = () => {
   const { idnft } = useParams<{ idnft: string }>()
   const navigate = useNavigate()
-  const { getNFTById } = useNFTStore()
+
   const { address } = useAccount()
   const chainId = useChainId()
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
@@ -36,29 +37,22 @@ const BorrowerDetail: React.FC = () => {
     return userPositions.find((p: any) => p.tokenId.toString() === idnft && p.isActive)
   }, [userPositions, idnft])
 
-  // Helper for NFT metadata
+  // NFT metadata from on-chain position data
   const nft = useMemo(() => {
-    if (!idnft) return undefined
-    const stored = getNFTById(idnft)
-    if (stored) return stored
-
-    // Fallback if not in store (real on-chain NFT)
-    if (position) {
-      return {
-        id: position.tokenId.toString(),
-        name: `NFT #${position.tokenId.toString()}`,
-        imageUrl: 'https://placehold.co/400', // Placeholder or fetch real URI if needed later
-        network: 'Unknown',
-        price: 0,
-        projectedYield: 0,
-        ltv: 0,
-        maxBorrow: 0,
-        type: 'erc721',
-        isMock: false
-      } as unknown as MockNFT
-    }
-    return undefined
-  }, [idnft, getNFTById, position])
+    if (!position) return undefined
+    return {
+      id: position.tokenId.toString(),
+      name: `NFT #${position.tokenId.toString()}`,
+      imageUrl: 'https://placehold.co/400',
+      network: 'Foundry',
+      price: 0,
+      projectedYield: 0,
+      ltv: 0,
+      maxBorrow: 0,
+      type: 'erc721',
+      isMock: false
+    } as NFT
+  }, [position])
 
   // Contract Interactions
   const { writeContractAsync: writeLoanManager } = useWriteContract()
@@ -84,15 +78,60 @@ const BorrowerDetail: React.FC = () => {
     query: { enabled: !!address && !!addresses.usdc && !!addresses.loanManager }
   })
 
-  // Mock Dividend Data (Can be replaced with Indexer data later)
+  // Fetch Real Yield Data from Ponder
+  const { data: yieldHistory } = useQuery({
+    queryKey: ['yieldHistory', position?.nftContract, position?.tokenId.toString()], // Convert BigInt to string for serialization
+    queryFn: async () => {
+      if (!position) return []
+      const loanId = `${position.nftContract.toLowerCase()}-${position.tokenId}` // Match Ponder ID format (lowercase)
+      const response = await fetch('http://localhost:42069/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `
+            query GetYieldEvents($loanId: String!) {
+              yieldEvents(where: { loanId: $loanId }, orderBy: timestamp, orderDirection: asc) {
+                id
+                totalAmount
+                timestamp
+              }
+            }
+          `,
+          variables: { loanId }
+        })
+      })
+      const result = await response.json()
+      return result.data?.yieldEvents || []
+    },
+    enabled: !!position && activeTab === 'history',
+    refetchInterval: 5000
+  })
+
   const dividendData = useMemo(() => {
-    let days = 30
-    if (chartRange === '1W') days = 7
-    if (chartRange === '1M') days = 30
-    if (chartRange === '3M') days = 90
-    if (chartRange === 'ALL') days = 180
-    return generateDividendData(days)
-  }, [chartRange])
+    if (!yieldHistory || yieldHistory.length === 0) return []
+
+    let filteredEvents = [...yieldHistory]
+    const now = Date.now() / 1000 // seconds
+    let cutoff = 0
+
+    if (chartRange === '1W') cutoff = now - 7 * 24 * 60 * 60
+    if (chartRange === '1M') cutoff = now - 30 * 24 * 60 * 60
+    if (chartRange === '3M') cutoff = now - 90 * 24 * 60 * 60
+    if (chartRange === 'ALL') cutoff = 0
+
+    filteredEvents = filteredEvents.filter((e: any) => Number(e.timestamp) >= cutoff)
+
+    let cumulative = 0
+    return filteredEvents.map((e: any) => {
+      const amount = parseFloat(formatUnits(BigInt(e.totalAmount), 6)) // Assuming USDC 6 decimals
+      cumulative += amount
+      return {
+        date: new Date(Number(e.timestamp) * 1000).toISOString(),
+        amount: amount,
+        cumulative: cumulative
+      }
+    })
+  }, [yieldHistory, chartRange])
 
   if (isLoadingPositions) {
     return (

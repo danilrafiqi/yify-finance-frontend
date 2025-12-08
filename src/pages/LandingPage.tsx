@@ -1,26 +1,18 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, TrendingUp, ShieldCheck, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { usePlatformStatsStore } from '../stores/platformStatsStore'
+
 import { usePlatformStats } from '../hooks/usePlatformStats'
 import { formatUnits } from 'viem'
 
 const LandingPage: React.FC = () => {
-  const { tvl, totalBorrow, availableFund, setPlatformStats } = usePlatformStatsStore()
-  const { tvl: tvlBigInt, totalBorrow: totalBorrowBigInt, availableFund: availableFundBigInt, isLoading } = usePlatformStats()
+  const { tvl: tvlBigInt, totalBorrow: totalBorrowBigInt, availableFund: availableFundBigInt } = usePlatformStats()
 
-  // Update store with real-time data from smart contract
-  useEffect(() => {
-    if (!isLoading && tvlBigInt !== undefined) {
-      // Convert BigInt to number (USDC has 6 decimals)
-      setPlatformStats({
-        tvl: parseFloat(formatUnits(tvlBigInt, 6)),
-        totalBorrow: parseFloat(formatUnits(totalBorrowBigInt, 6)),
-        availableFund: parseFloat(formatUnits(availableFundBigInt, 6))
-      })
-    }
-  }, [tvlBigInt, totalBorrowBigInt, availableFundBigInt, isLoading, setPlatformStats])
+  // Convert BigInt to display values
+  const tvl = tvlBigInt ? parseFloat(formatUnits(tvlBigInt, 6)) : 0
+  const totalBorrow = totalBorrowBigInt ? parseFloat(formatUnits(totalBorrowBigInt, 6)) : 0
+  const availableFund = availableFundBigInt ? parseFloat(formatUnits(availableFundBigInt, 6)) : 0
 
   return (
     <div className="space-y-16 py-8">
