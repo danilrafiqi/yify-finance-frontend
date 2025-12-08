@@ -139,7 +139,7 @@ const AdminPage: React.FC = () => {
             const hash = await writeContractAsync({
                 address: addresses.usdc as `0x${string}`,
                 abi: MOCK_USDC_ABI,
-                functionName: 'mint',
+                functionName: 'mintPublic',
                 args: [address, amount]
             })
 

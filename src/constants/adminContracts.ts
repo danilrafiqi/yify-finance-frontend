@@ -51,7 +51,17 @@ export const UNIVERSAL_YIELD_GENERATOR_ABI = [
 export const MOCK_USDC_ABI = [
     {
         type: 'function',
-        name: 'mint',
+        name: 'mintPublic',
+        inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+        ],
+        outputs: [],
+        stateMutability: 'nonpayable'
+    },
+    {
+        type: 'function',
+        name: 'mintAdmin',
         inputs: [
             { name: 'to', type: 'address' },
             { name: 'amount', type: 'uint256' }
@@ -109,10 +119,9 @@ export const MOCK_NFT_ABI = [
     }
 ] as const
 
-// Admin contract addresses (only for local/testnet)
 export const ADMIN_CONTRACT_ADDRESSES = {
     31337: { // Foundry local
-        yieldGenerator: '0x0e801D84Fa97b50751Dbf25036d067dCf18858bF',
+        yieldGenerator: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9', // Updated from latest deployment
     },
     4202: { // Lisk Sepolia
         yieldGenerator: '0x0000000000000000000000000000000000000000', // Not deployed on testnet
