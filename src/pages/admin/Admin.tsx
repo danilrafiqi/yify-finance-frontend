@@ -13,9 +13,6 @@ const AdminPage: React.FC = () => {
     const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
     const adminAddresses = ADMIN_CONTRACT_ADDRESSES[chainId as keyof typeof ADMIN_CONTRACT_ADDRESSES]
 
-    // Debug logging
-    console.log('Admin Debug:', { chainId, adminAddresses, yieldGenerator: adminAddresses?.yieldGenerator })
-
     const { writeContractAsync } = useWriteContract()
     const { tvl, totalBorrow, availableFund } = usePlatformStats()
 
@@ -342,7 +339,7 @@ const AdminPage: React.FC = () => {
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <form id="mint-usdc-form" onSubmit={handleMintUSDC} className="space-y-4">
+                        <form onSubmit={handleMintUSDC} className="space-y-4">
                             <h3 className="font-black uppercase">Mint USDC</h3>
                             <p className="text-sm font-bold">Mint test USDC to your wallet</p>
                             <div className="bg-white border-2 border-black p-3">

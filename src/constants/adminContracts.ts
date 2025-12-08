@@ -1,4 +1,4 @@
-// Admin-specific contract ABIs for testing and development operations
+// Admin contract addresses (only for local/testnet)ing and development operations
 
 export const UNIVERSAL_YIELD_GENERATOR_ABI = [
     {
@@ -85,7 +85,35 @@ export const MOCK_USDC_ABI = [
     }
 ] as const
 
-export const MOCK_NFT_ABI = [
+export const MOCK_VENFT_ABI = [
+    {
+        type: 'function',
+        name: 'mint',
+        inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'power', type: 'uint256' },
+            { name: 'duration', type: 'uint256' }
+        ],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'nonpayable'
+    },
+    {
+        type: 'function',
+        name: 'balanceOf',
+        inputs: [{ name: 'owner', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view'
+    },
+    {
+        type: 'function',
+        name: 'totalSupply',
+        inputs: [],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view'
+    }
+] as const
+
+export const MOCK_RWA_NFT_ABI = [
     {
         type: 'function',
         name: 'mint',
@@ -102,22 +130,15 @@ export const MOCK_NFT_ABI = [
     },
     {
         type: 'function',
-        name: 'tokenOfOwnerByIndex',
-        inputs: [
-            { name: 'owner', type: 'address' },
-            { name: 'index', type: 'uint256' }
-        ],
-        outputs: [{ name: '', type: 'uint256' }],
-        stateMutability: 'view'
-    },
-    {
-        type: 'function',
         name: 'totalSupply',
         inputs: [],
         outputs: [{ name: '', type: 'uint256' }],
         stateMutability: 'view'
     }
 ] as const
+
+// Alias for backward compatibility - simple mint with just address
+export const MOCK_NFT_ABI = MOCK_RWA_NFT_ABI
 
 export const ADMIN_CONTRACT_ADDRESSES = {
     31337: { // Foundry local
