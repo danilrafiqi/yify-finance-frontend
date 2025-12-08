@@ -13,6 +13,9 @@ const AdminPage: React.FC = () => {
     const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
     const adminAddresses = ADMIN_CONTRACT_ADDRESSES[chainId as keyof typeof ADMIN_CONTRACT_ADDRESSES]
 
+    // Debug logging
+    console.log('Admin Debug:', { chainId, adminAddresses, yieldGenerator: adminAddresses?.yieldGenerator })
+
     const { writeContractAsync } = useWriteContract()
     const { tvl, totalBorrow, availableFund } = usePlatformStats()
 
@@ -339,7 +342,7 @@ const AdminPage: React.FC = () => {
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <form onSubmit={handleMintUSDC} className="space-y-4">
+                        <form id="mint-usdc-form" onSubmit={handleMintUSDC} className="space-y-4">
                             <h3 className="font-black uppercase">Mint USDC</h3>
                             <p className="text-sm font-bold">Mint test USDC to your wallet</p>
                             <div className="bg-white border-2 border-black p-3">
@@ -371,12 +374,27 @@ const AdminPage: React.FC = () => {
                             <h3 className="font-black uppercase">Quick Actions</h3>
                             <p className="text-sm font-bold">Common testing scenarios</p>
                             <button
-                                onClick={() => {
-                                    setMintUSDCAmount('10000')
-                                    setTimeout(() => {
-                                        const form = document.querySelector('form') as HTMLFormElement
-                                        form?.requestSubmit()
-                                    }, 100)
+                                onClick={async () => {
+                                    if (!address) {
+                                        toast.error('Please connect wallet')
+                                        return
+                                    }
+                                    try {
+                                        setIsLoading(true)
+                                        const amount = parseUnits('10000', 6)
+                                        const hash = await writeContractAsync({
+                                            address: addresses.usdc as `0x${string}`,
+                                            abi: MOCK_USDC_ABI,
+                                            functionName: 'mintPublic',
+                                            args: [address, amount]
+                                        })
+                                        toast.success(`10,000 USDC minted! Tx: ${hash.slice(0, 10)}...`)
+                                    } catch (error: any) {
+                                        console.error(error)
+                                        toast.error(error.shortMessage || 'Failed to mint USDC')
+                                    } finally {
+                                        setIsLoading(false)
+                                    }
                                 }}
                                 disabled={isLoading}
                                 className="btn-neo bg-white w-full"
@@ -384,12 +402,27 @@ const AdminPage: React.FC = () => {
                                 Mint 10,000 USDC
                             </button>
                             <button
-                                onClick={() => {
-                                    setMintUSDCAmount('100000')
-                                    setTimeout(() => {
-                                        const form = document.querySelector('form') as HTMLFormElement
-                                        form?.requestSubmit()
-                                    }, 100)
+                                onClick={async () => {
+                                    if (!address) {
+                                        toast.error('Please connect wallet')
+                                        return
+                                    }
+                                    try {
+                                        setIsLoading(true)
+                                        const amount = parseUnits('100000', 6)
+                                        const hash = await writeContractAsync({
+                                            address: addresses.usdc as `0x${string}`,
+                                            abi: MOCK_USDC_ABI,
+                                            functionName: 'mintPublic',
+                                            args: [address, amount]
+                                        })
+                                        toast.success(`100,000 USDC minted! Tx: ${hash.slice(0, 10)}...`)
+                                    } catch (error: any) {
+                                        console.error(error)
+                                        toast.error(error.shortMessage || 'Failed to mint USDC')
+                                    } finally {
+                                        setIsLoading(false)
+                                    }
                                 }}
                                 disabled={isLoading}
                                 className="btn-neo bg-white w-full"
