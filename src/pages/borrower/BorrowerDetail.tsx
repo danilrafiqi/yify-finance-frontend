@@ -9,7 +9,7 @@ import { toast } from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { useAccount, useReadContract, useWriteContract, useChainId } from 'wagmi'
 import { formatUnits, parseUnits, erc20Abi } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LOAN_MANAGER_ABI, LENS_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LOAN_MANAGER_ABI, LENS_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
 
 const BorrowerDetail: React.FC = () => {
   const { idnft } = useParams<{ idnft: string }>()
@@ -37,6 +37,17 @@ const BorrowerDetail: React.FC = () => {
     return userPositions.find((p: any) => p.tokenId.toString() === idnft && p.isActive)
   }, [userPositions, idnft])
 
+  // Get NFT Value from Oracle
+  const { data: nftValueData } = useReadContract({
+    address: addresses.nftOracle as `0x${string}`,
+    abi: SIMPLE_ORACLE_ABI,
+    functionName: 'getAssetPrice',
+    args: [position?.nftContract as `0x${string}`, position?.tokenId as bigint],
+    query: { enabled: !!position && !!addresses.nftOracle }
+  })
+
+  const nftValue = nftValueData ? parseFloat(formatUnits(nftValueData as bigint, 18)) : 0
+
   // NFT metadata from on-chain position data
   const nft = useMemo(() => {
     if (!position) return undefined
@@ -45,14 +56,14 @@ const BorrowerDetail: React.FC = () => {
       name: `NFT #${position.tokenId.toString()}`,
       imageUrl: 'https://placehold.co/400',
       network: 'Foundry',
-      price: 0,
+      price: nftValue, // Use real value from oracle
       projectedYield: 0,
       ltv: 0,
       maxBorrow: 0,
       type: 'erc721',
       isMock: false
     } as NFT
-  }, [position])
+  }, [position, nftValue])
 
   // Contract Interactions
   const { writeContractAsync: writeLoanManager } = useWriteContract()
