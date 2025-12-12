@@ -77,6 +77,11 @@ const BorrowerDashboard: React.FC = () => {
             const tokenId = position.tokenId.toString()
             const contractAddr = position.nftContract
 
+            // Detect NFT type based on contract address
+            const isVeNFT = contractAddr.toLowerCase() === addresses.veNFT.toLowerCase()
+            const isRwaNFT = contractAddr.toLowerCase() === addresses.rwaNFT.toLowerCase()
+            const nftType = isVeNFT ? 'veNFT' : isRwaNFT ? 'RWA' : 'NFT'
+
             // Stats
             const debt = parseFloat(formatUnits(position.remainingDebt, 6))
             const initialLoan = parseFloat(formatUnits(position.totalBorrowed, 6))
@@ -86,9 +91,9 @@ const BorrowerDashboard: React.FC = () => {
             return (
               <div key={loanId} className="card-neo bg-white hover:shadow-neo-lg transition-all border-4 border-black p-0 overflow-hidden flex flex-col md:flex-row">
                 {/* Left: NFT Image/Icon */}
-                <div className="w-full md:w-48 aspect-square bg-neo-red flex items-center justify-center border-b-4 md:border-b-0 md:border-r-4 border-black p-4">
+                <div className={`w-full md:w-48 aspect-square flex items-center justify-center border-b-4 md:border-b-0 md:border-r-4 border-black p-4 ${isVeNFT ? 'bg-neo-red' : isRwaNFT ? 'bg-neo-magenta' : 'bg-gray-600'}`}>
                   <div className="text-center text-white">
-                    <p className="font-black text-2xl uppercase">veNFT</p>
+                    <p className="font-black text-2xl uppercase">{nftType}</p>
                     <p className="font-bold">#{tokenId}</p>
                   </div>
                 </div>
@@ -97,7 +102,7 @@ const BorrowerDashboard: React.FC = () => {
                 <div className="flex-1 p-6 space-y-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-2xl font-black uppercase">veNFT #{tokenId}</h3>
+                      <h3 className="text-2xl font-black uppercase">{nftType} #{tokenId}</h3>
                       <div className="flex gap-2 mt-1">
                         <span className="bg-black text-white text-xs font-bold px-2 py-1 uppercase rounded">
                           {contractAddr.slice(0, 6)}...{contractAddr.slice(-4)}
