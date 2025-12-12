@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { useAccount, useWriteContract, useReadContract, useChainId } from 'wagmi'
-import { parseUnits, formatUnits, erc20Abi } from 'viem'
+import { useAccount, useWriteContract, useReadContract, useChainId, usePublicClient } from 'wagmi'
+import { parseUnits, formatUnits, erc20Abi, parseEther } from 'viem'
 import { toast } from 'react-hot-toast'
-import { Settings, Zap, Coins, Database, Info, Loader2 } from 'lucide-react'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID } from '../../constants/contracts'
+import { Settings, Zap, Coins, Database, Info, Loader2, DollarSign } from 'lucide-react'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
 import { UNIVERSAL_YIELD_GENERATOR_ABI, MOCK_USDC_ABI, MOCK_NFT_ABI, ADMIN_CONTRACT_ADDRESSES } from '../../constants/adminContracts'
 import { usePlatformStats } from '../../hooks/usePlatformStats'
 
@@ -14,6 +14,7 @@ const AdminPage: React.FC = () => {
     const adminAddresses = ADMIN_CONTRACT_ADDRESSES[chainId as keyof typeof ADMIN_CONTRACT_ADDRESSES]
 
     const { writeContractAsync } = useWriteContract()
+    const publicClient = usePublicClient()
     const { tvl, totalBorrow, availableFund } = usePlatformStats()
 
     // States
@@ -22,6 +23,8 @@ const AdminPage: React.FC = () => {
     const [specificNFTAddress, setSpecificNFTAddress] = useState<string>(addresses.veNFT)
     const [specificTokenId, setSpecificTokenId] = useState('')
     const [mintUSDCAmount, setMintUSDCAmount] = useState('')
+    const [nftPrice, setNftPrice] = useState('')
+    const [nftType, setNftType] = useState<'veNFT' | 'rwaNFT'>('veNFT')
     const [isLoading, setIsLoading] = useState(false)
 
     // Read USDC balance
@@ -98,9 +101,15 @@ const AdminPage: React.FC = () => {
     }
 
     // ===== NFT OPERATIONS =====
-    const handleMintNFT = async (nftType: 'veNFT' | 'rwaNFT') => {
+    const handleMintNFT = async (e: React.FormEvent) => {
+        e.preventDefault()
         if (!address) {
             toast.error('Please connect wallet')
+            return
+        }
+
+        if (!nftPrice || isNaN(Number(nftPrice))) {
+            toast.error('Please enter a valid price')
             return
         }
 
@@ -108,17 +117,48 @@ const AdminPage: React.FC = () => {
             setIsLoading(true)
             const nftAddress = nftType === 'veNFT' ? addresses.veNFT : addresses.rwaNFT
 
-            const hash = await writeContractAsync({
+            // 1. Mint NFT
+            toast.loading('Step 1/2: Minting NFT...', { id: 'mint-admin-toast' })
+            const mintHash = await writeContractAsync({
                 address: nftAddress as `0x${string}`,
                 abi: MOCK_NFT_ABI,
                 functionName: 'mint',
                 args: [address]
             })
 
-            toast.success(`${nftType} minted! Tx: ${hash.slice(0, 10)}...`)
+            // Wait for confirmation and get token ID
+            const receipt = await publicClient?.waitForTransactionReceipt({ hash: mintHash })
+            if (!receipt) throw new Error("Failed to get mint receipt")
+
+            // Extract token ID from Transfer event
+            const transferLog = receipt.logs.find(log =>
+                log.address.toLowerCase() === nftAddress.toLowerCase() &&
+                log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+            )
+
+            if (!transferLog?.topics[3]) {
+                throw new Error("Could not find Token ID in logs")
+            }
+
+            const mintedId = BigInt(transferLog.topics[3])
+            console.log(`Minted ${nftType} ID:`, mintedId.toString())
+
+            // 2. Set Price
+            toast.loading(`Step 2/2: Setting Price to $${nftPrice}...`, { id: 'mint-admin-toast' })
+            const priceInWei = parseEther(nftPrice)
+
+            await writeContractAsync({
+                address: addresses.nftOracle as `0x${string}`,
+                abi: SIMPLE_ORACLE_ABI,
+                functionName: 'setTokenPrice',
+                args: [nftAddress, mintedId, priceInWei]
+            })
+
+            toast.success(`${nftType} #${mintedId} minted with value $${nftPrice}!`, { id: 'mint-admin-toast' })
+            setNftPrice('')
         } catch (error: any) {
             console.error(error)
-            toast.error(error.shortMessage || `Failed to mint ${nftType}`)
+            toast.error(error.shortMessage || `Failed to mint ${nftType}`, { id: 'mint-admin-toast' })
         } finally {
             setIsLoading(false)
         }
@@ -302,33 +342,54 @@ const AdminPage: React.FC = () => {
                         NFT Operations
                     </h2>
 
-                    <div className="space-y-4">
+                    <form onSubmit={handleMintNFT} className="space-y-4">
+                        <h3 className="font-black uppercase">Mint NFT with Price</h3>
+                        <p className="text-sm font-bold text-blue-100">Mint NFT and set its collateral value</p>
+
+                        {/* NFT Type Selector */}
                         <div>
-                            <h3 className="font-black uppercase mb-2">Mint veNFT</h3>
-                            <p className="text-sm font-bold mb-4 text-blue-100">Mint a voting escrow NFT to your wallet</p>
-                            <button
-                                onClick={() => handleMintNFT('veNFT')}
+                            <label className="block text-sm font-bold text-white mb-2">NFT Type</label>
+                            <select
+                                value={nftType}
+                                onChange={(e) => setNftType(e.target.value as 'veNFT' | 'rwaNFT')}
+                                className="input-neo bg-white text-black"
                                 disabled={isLoading}
-                                className="btn-neo bg-white text-black w-full flex items-center justify-center gap-2"
                             >
-                                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Coins size={20} />}
-                                Mint veNFT
-                            </button>
+                                <option value="veNFT">veNFT</option>
+                                <option value="rwaNFT">RWA NFT</option>
+                            </select>
                         </div>
 
-                        <div className="pt-6 border-t-2 border-white">
-                            <h3 className="font-black uppercase mb-2">Mint RWA NFT</h3>
-                            <p className="text-sm font-bold mb-4 text-blue-100">Mint a Real World Asset NFT to your wallet</p>
-                            <button
-                                onClick={() => handleMintNFT('rwaNFT')}
-                                disabled={isLoading}
-                                className="btn-neo bg-white text-black w-full flex items-center justify-center gap-2"
-                            >
-                                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Coins size={20} />}
-                                Mint RWA NFT
-                            </button>
+                        {/* Price Input */}
+                        <div>
+                            <label className="block text-sm font-bold text-white mb-2">Set Value ($)</label>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-3 text-gray-500" size={16} />
+                                <input
+                                    type="number"
+                                    placeholder="e.g. 20000"
+                                    value={nftPrice}
+                                    onChange={(e) => setNftPrice(e.target.value)}
+                                    className="input-neo bg-white text-black pl-10"
+                                    step="0.01"
+                                    disabled={isLoading}
+                                />
+                            </div>
                         </div>
-                    </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading || !nftPrice}
+                            className="btn-neo bg-white text-black w-full flex items-center justify-center gap-2"
+                        >
+                            {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Coins size={20} />}
+                            Mint {nftType} & Set Price
+                        </button>
+
+                        <p className="text-xs text-blue-200">
+                            1. Mint NFT to your wallet → 2. Set collateral value in oracle
+                        </p>
+                    </form>
                 </div>
 
                 {/* Liquidity Operations */}

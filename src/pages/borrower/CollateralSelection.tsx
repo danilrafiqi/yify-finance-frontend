@@ -315,60 +315,6 @@ const CollateralSelection: React.FC = () => {
       <div className="text-center space-y-4">
         <h1 className="text-4xl md:text-5xl font-black uppercase">Select Collateral</h1>
         <p className="text-xl font-bold text-gray-600">Choose an NFT from your wallet to use as collateral.</p>
-
-        {/* Mint Mock NFT Button with Price Input */}
-        <div className="max-w-md mx-auto bg-gray-100 p-4 rounded-xl border-2 border-gray-200">
-          {/* NFT Type Selector */}
-          <div className="mb-4">
-            <label className="block text-sm font-bold text-gray-500 mb-2">NFT Type</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setNftType('veNFT')}
-                className={`flex-1 py-2 px-3 font-bold border-2 rounded-lg transition-all ${
-                  nftType === 'veNFT'
-                    ? 'bg-black text-white border-black'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
-                }`}
-              >
-                veNFT
-              </button>
-              <button
-                onClick={() => setNftType('rwaNFT')}
-                className={`flex-1 py-2 px-3 font-bold border-2 rounded-lg transition-all ${
-                  nftType === 'rwaNFT'
-                    ? 'bg-black text-white border-black'
-                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
-                }`}
-              >
-                RWA NFT
-              </button>
-            </div>
-          </div>
-
-          <label className="block text-sm font-bold text-gray-500 mb-2">Set Mock Value ($)</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <DollarSign className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="number"
-                value={mockPrice}
-                onChange={(e) => setMockPrice(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 font-bold rounded-lg border-2 border-gray-300 focus:border-black outline-none"
-              />
-            </div>
-            <button
-              onClick={handleMintMockNFT}
-              disabled={isMinting}
-              className="btn-neo bg-neo-yellow inline-flex items-center gap-2 whitespace-nowrap"
-            >
-              <Plus size={18} />
-              {isMinting ? 'Processing...' : 'Mint & Set Price'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            1. Mint {nftType} → 2. Set Price (2 Transactions)
-          </p>
-        </div>
       </div>
 
       {/* Network Filter */}
