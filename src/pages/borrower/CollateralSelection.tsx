@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAccount, useChainId, useSwitchChain, useWriteContract, useReadContracts, useReadContract, usePublicClient } from 'wagmi'
 import { ArrowRight, Plus, Wallet, Lock, DollarSign } from 'lucide-react'
 import { parseUnits, parseEther } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, VENFT_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, VENFT_ABI, RWANFT_ABI, SIMPLE_ORACLE_ABI, ERC721_ABI } from '../../constants/contracts'
 import { toast } from 'react-hot-toast'
 
 // Simple NFT interface for wallet NFTs
@@ -11,6 +11,7 @@ interface WalletNFT {
   tokenId: string
   contract: string
   name: string
+  uniqueKey: string // Unique key combining contract + tokenId
 }
 
 const CollateralSelection: React.FC = () => {
@@ -20,35 +21,56 @@ const CollateralSelection: React.FC = () => {
   const { switchChain } = useSwitchChain()
   const publicClient = usePublicClient()
   const [mockPrice, setMockPrice] = useState<string>('5000') // Default 5000
+  const [nftType, setNftType] = useState<'veNFT' | 'rwaNFT'>('veNFT') // Default to veNFT
 
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
 
   // Mint Mock NFT
   const { writeContractAsync: writeMint, isPending: isMinting } = useWriteContract()
 
-  // Fetch Total Supply to avoid querying non-existent tokens
-  const { data: totalSupply } = useReadContract({
+  // Fetch Total Supply for veNFT
+  const { data: veNFTTotalSupply } = useReadContract({
     address: addresses.veNFT as `0x${string}`,
     abi: VENFT_ABI,
     functionName: 'totalSupply',
-    query: { refetchInterval: 2000 }
+    query: { refetchInterval: 5000 } // More frequent updates
   })
 
-  // Dynamic Scanning based on Total Supply
-  const tokenIdsToCheck = useMemo(() => {
-    if (!totalSupply) return []
-    const limit = Number(totalSupply)
-    return Array.from({ length: limit }, (_, i) => i)
-  }, [totalSupply])
+  // Dynamic Scanning based on Total Supply for veNFT
+  const veNFTTokenIdsToCheck = useMemo(() => {
+    if (!veNFTTotalSupply) return []
+    const limit = Number(veNFTTotalSupply)
+    // Add extra buffer for newly minted tokens
+    const safeLimit = Math.max(limit, 50) // Scan at least 50 tokens for safety
+    return Array.from({ length: safeLimit }, (_, i) => i)
+  }, [veNFTTotalSupply])
 
-  const ownershipChecks = useReadContracts({
-    contracts: tokenIdsToCheck.map(tokenId => ({
+  // For RWA NFT, scan more tokens since they can be minted dynamically
+  const rwaNFTTokenIdsToCheck = useMemo(() => {
+    // Scan first 50 tokens for safety
+    return Array.from({ length: 50 }, (_, i) => i)
+  }, [])
+
+  // Check ownership for veNFT tokens
+  const veNFTOwnershipChecks = useReadContracts({
+    contracts: veNFTTokenIdsToCheck.map(tokenId => ({
       address: addresses.veNFT as `0x${string}`,
       abi: VENFT_ABI,
       functionName: 'ownerOf',
       args: [BigInt(tokenId)]
     })),
-    query: { enabled: !!address && tokenIdsToCheck.length > 0, refetchInterval: 2000 }
+    query: { enabled: !!address && veNFTTokenIdsToCheck.length > 0, refetchInterval: 2000 }
+  })
+
+  // Check ownership for rwaNFT tokens
+  const rwaNFTOwnershipChecks = useReadContracts({
+    contracts: rwaNFTTokenIdsToCheck.map(tokenId => ({
+      address: addresses.rwaNFT as `0x${string}`,
+      abi: RWANFT_ABI,
+      functionName: 'ownerOf',
+      args: [BigInt(tokenId)]
+    })),
+    query: { enabled: !!address && rwaNFTTokenIdsToCheck.length > 0, refetchInterval: 2000 }
   })
 
   // ... (Lens fetching remains the same) ...
@@ -96,34 +118,61 @@ const CollateralSelection: React.FC = () => {
   const [walletNFTs, setWalletNFTs] = useState<WalletNFT[]>([])
 
   useEffect(() => {
-    if (ownershipChecks.data && address) {
+    if ((veNFTOwnershipChecks.data || rwaNFTOwnershipChecks.data) && address) {
       const ownedNFTs: WalletNFT[] = []
 
-      // Add NFTs from wallet (ownerOf check)
-      ownershipChecks.data.forEach((result, index) => {
-        if (result.status === 'success' && result.result) {
-          const owner = result.result as string
-          if (owner.toLowerCase() === address.toLowerCase()) {
-
-            // Only add if NOT deposited (UX Request)
-            const tokenIdStr = index.toString()
-            if (!depositedTokenIds.includes(tokenIdStr)) {
-              ownedNFTs.push({
-                tokenId: tokenIdStr,
-                contract: addresses.veNFT,
-                name: `veNFT #${index}`
-              })
+      // Add veNFTs from wallet (ownerOf check)
+      if (veNFTOwnershipChecks.data) {
+        veNFTOwnershipChecks.data.forEach((result, index) => {
+          // Only process successful results with valid owners
+          if (result.status === 'success' && result.result) {
+            const owner = result.result as string
+            if (owner.toLowerCase() === address.toLowerCase()) {
+              // Only add if NOT deposited (UX Request)
+              const tokenIdStr = index.toString()
+              if (!depositedTokenIds.includes(tokenIdStr)) {
+                ownedNFTs.push({
+                  tokenId: tokenIdStr,
+                  contract: addresses.veNFT,
+                  name: `veNFT #${index}`,
+                  uniqueKey: `${addresses.veNFT}-${tokenIdStr}`
+                })
+              }
             }
           }
-        }
-      })
+          // Ignore failed results (non-existent tokens) - this is expected for buffer scanning
+        })
+      }
+
+      // Add rwaNFTs from wallet (ownerOf check)
+      if (rwaNFTOwnershipChecks.data) {
+        rwaNFTOwnershipChecks.data.forEach((result, index) => {
+          // Only process successful results with valid owners
+          if (result.status === 'success' && result.result) {
+            const owner = result.result as string
+            if (owner.toLowerCase() === address.toLowerCase()) {
+              // Only add if NOT deposited (UX Request)
+              const tokenIdStr = index.toString()
+              if (!depositedTokenIds.includes(tokenIdStr)) {
+                ownedNFTs.push({
+                  tokenId: tokenIdStr,
+                  contract: addresses.rwaNFT,
+                  name: `RWA NFT #${index}`,
+                  uniqueKey: `${addresses.rwaNFT}-${tokenIdStr}`
+                })
+              }
+            }
+          }
+          // Ignore failed results (non-existent tokens) - this is expected for buffer scanning
+        })
+      }
 
       // UX Update: Do NOT add deposited NFTs to the list
       // Previously we merged them, now we just show wallet items available for collateral.
 
       setWalletNFTs(ownedNFTs)
     }
-  }, [ownershipChecks.data, address, addresses.veNFT, depositedTokenIds])
+  }, [veNFTOwnershipChecks.data, rwaNFTOwnershipChecks.data, address, addresses.veNFT, addresses.rwaNFT, depositedTokenIds])
 
   const [selectedNFT, setSelectedNFT] = useState<WalletNFT | null>(null)
 
@@ -139,13 +188,25 @@ const CollateralSelection: React.FC = () => {
     }
 
     try {
+      const isVeNFT = nftType === 'veNFT'
+      const contractAddress = isVeNFT ? addresses.veNFT : addresses.rwaNFT
+      const contractABI = isVeNFT ? VENFT_ABI : RWANFT_ABI
+
       // 1. Mint
       toast.loading('Step 1/2: Minting NFT...', { id: 'mint-toast' })
+
+      let mintArgs: any[]
+      if (isVeNFT) {
+        mintArgs = [address, parseUnits('1000', 18), BigInt(63072000)] // power and duration for veNFT
+      } else {
+        mintArgs = [address] // only recipient for RWA NFT
+      }
+
       const mintHash = await writeMint({
-        address: addresses.veNFT as `0x${string}`,
-        abi: VENFT_ABI,
+        address: contractAddress as `0x${string}`,
+        abi: contractABI,
         functionName: 'mint',
-        args: [address, parseUnits('1000', 18), BigInt(63072000)]
+        args: mintArgs as any
       })
 
       toast.loading('Waiting for confirmation...', { id: 'mint-toast' })
@@ -153,21 +214,52 @@ const CollateralSelection: React.FC = () => {
 
       if (!receipt) throw new Error("Failed to get receipt")
 
-      // 2. Extract Token ID from Transfer event (Topic 3 is tokenId)
-      // Filter for Transfer event to user
-      const transferLog = receipt.logs.find(log =>
-        log.address.toLowerCase() === addresses.veNFT.toLowerCase() &&
-        log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef' // Transfer sig
-      )
+      // 2. Get the newly minted token ID by checking updated total supply
+      // This is more reliable than estimating from old totalSupply
+      let mintedId = 0n
 
-      if (!transferLog || !transferLog.topics[3]) {
-        throw new Error("Could not find Token ID in logs")
+      try {
+        if (isVeNFT) {
+          // For veNFT, query totalSupply after mint to get the new token ID
+          const newTotalSupply = await publicClient?.readContract({
+            address: addresses.veNFT as `0x${string}`,
+            abi: VENFT_ABI,
+            functionName: 'totalSupply'
+          })
+          mintedId = newTotalSupply ? BigInt(Number(newTotalSupply) - 1) : 0n
+        } else {
+          // For RWA NFT, we need to find the highest token ID owned by user
+          // Since RWA NFT doesn't have totalSupply, we'll scan for the highest owned token
+          let highestId = 0n
+          for (let i = 0; i < 100; i++) { // Scan up to 100 tokens
+            try {
+              const owner = await publicClient?.readContract({
+                address: addresses.rwaNFT as `0x${string}`,
+                abi: ERC721_ABI,
+                functionName: 'ownerOf',
+                args: [BigInt(i)]
+              })
+              if (owner && owner.toLowerCase() === address.toLowerCase()) {
+                highestId = BigInt(i)
+              }
+            } catch {
+              // Token doesn't exist, continue
+              break
+            }
+          }
+          mintedId = highestId
+        }
+      } catch (error) {
+        console.error("Failed to determine minted token ID:", error)
+        // Fallback to estimation
+        mintedId = isVeNFT ?
+          (veNFTTotalSupply ? BigInt(Number(veNFTTotalSupply)) : 0n) :
+          0n
       }
 
-      const mintedId = BigInt(transferLog.topics[3])
       console.log("Minted ID:", mintedId.toString())
 
-      // 3. Set Price
+      // 3. Set Price (only for supported contracts)
       toast.loading(`Step 2/2: Setting Price to $${mockPrice}...`, { id: 'mint-toast' })
 
       const priceInWei = parseEther(mockPrice) // Oracle uses 1e18 for price
@@ -176,10 +268,10 @@ const CollateralSelection: React.FC = () => {
         address: addresses.nftOracle as `0x${string}`,
         abi: SIMPLE_ORACLE_ABI,
         functionName: 'setTokenPrice',
-        args: [addresses.veNFT, mintedId, priceInWei]
+        args: [contractAddress, mintedId, priceInWei]
       })
 
-      toast.success(`Success! NFT #${mintedId} minted with value $${mockPrice}`, { id: 'mint-toast' })
+      toast.success(`Success! ${nftType} #${mintedId} minted with value $${mockPrice}`, { id: 'mint-toast' })
 
     } catch (error: any) {
       console.error(error)
@@ -189,7 +281,7 @@ const CollateralSelection: React.FC = () => {
 
   const handleContinue = () => {
     if (selectedNFT) {
-      navigate(`/borrower/calculator?tokenId=${selectedNFT.tokenId}`)
+      navigate(`/borrower/calculator?tokenId=${selectedNFT.tokenId}&contract=${selectedNFT.contract}`)
     }
   }
 
@@ -226,6 +318,33 @@ const CollateralSelection: React.FC = () => {
 
         {/* Mint Mock NFT Button with Price Input */}
         <div className="max-w-md mx-auto bg-gray-100 p-4 rounded-xl border-2 border-gray-200">
+          {/* NFT Type Selector */}
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-gray-500 mb-2">NFT Type</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setNftType('veNFT')}
+                className={`flex-1 py-2 px-3 font-bold border-2 rounded-lg transition-all ${
+                  nftType === 'veNFT'
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
+                }`}
+              >
+                veNFT
+              </button>
+              <button
+                onClick={() => setNftType('rwaNFT')}
+                className={`flex-1 py-2 px-3 font-bold border-2 rounded-lg transition-all ${
+                  nftType === 'rwaNFT'
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-black'
+                }`}
+              >
+                RWA NFT
+              </button>
+            </div>
+          </div>
+
           <label className="block text-sm font-bold text-gray-500 mb-2">Set Mock Value ($)</label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -247,7 +366,7 @@ const CollateralSelection: React.FC = () => {
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            1. Mint NFT → 2. Set Price (2 Transactions)
+            1. Mint {nftType} → 2. Set Price (2 Transactions)
           </p>
         </div>
       </div>
@@ -281,11 +400,11 @@ const CollateralSelection: React.FC = () => {
             const isDeposited = depositedTokenIds.includes(nft.tokenId)
             return (
               <div
-                key={nft.tokenId}
+                key={nft.uniqueKey}
                 onClick={() => setSelectedNFT(nft)}
                 className={`
                   card-neo bg-white cursor-pointer transition-all
-                  ${selectedNFT?.tokenId === nft.tokenId
+                  ${selectedNFT?.uniqueKey === nft.uniqueKey
                     ? 'ring-4 ring-neo-green shadow-neo-lg scale-105'
                     : 'hover:shadow-neo-lg hover:scale-105'}
                 `}
@@ -306,7 +425,7 @@ const CollateralSelection: React.FC = () => {
                       {nft.contract.slice(0, 6)}...{nft.contract.slice(-4)}
                     </p>
                   </div>
-                  {selectedNFT?.tokenId === nft.tokenId ? (
+                  {selectedNFT?.uniqueKey === nft.uniqueKey ? (
                     <div className="pt-2 border-t-2 border-gray-100">
                       <span className="bg-neo-green text-black font-bold px-2 py-1 text-xs uppercase rounded">
                         ✓ Selected

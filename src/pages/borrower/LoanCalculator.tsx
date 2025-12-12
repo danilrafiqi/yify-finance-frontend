@@ -10,22 +10,24 @@ const LoanCalculator: React.FC = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const tokenIdFromUrl = searchParams.get('tokenId')
+  const contractFromUrl = searchParams.get('contract')
 
-  useAccount() // Ensure we have account context if needed, though address not explicitly used here except for internal wagmi context likely
+  const { address } = useAccount() // Ensure we have account context if needed, though address not explicitly used here except for internal wagmi context likely
   const chainId = useChainId()
 
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
 
   const [loanAmount, setLoanAmount] = useState<number>(0)
   const nftTokenId = tokenIdFromUrl || '0'
+  const nftContract = contractFromUrl || addresses.veNFT // Default to veNFT if not specified
 
   // Read NFT Value from Oracle
   const { data: nftValueData } = useReadContract({
     address: addresses.nftOracle as `0x${string}`,
     abi: SIMPLE_ORACLE_ABI,
     functionName: 'getAssetPrice',
-    args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId || '0')],
-    query: { enabled: !!addresses.nftOracle }
+    args: [nftContract as `0x${string}`, BigInt(nftTokenId || '0')],
+    query: { enabled: !!addresses.nftOracle && !!nftContract }
   })
 
   // Oracle returns 18 decimals.
@@ -90,7 +92,7 @@ const LoanCalculator: React.FC = () => {
 
   const handleApprove = () => {
     writeApprove({
-      address: addresses.veNFT as `0x${string}`,
+      address: nftContract as `0x${string}`,
       abi: ERC721_ABI,
       functionName: 'setApprovalForAll',
       args: [addresses.loanManager as `0x${string}`, true]
@@ -113,7 +115,7 @@ const LoanCalculator: React.FC = () => {
       address: addresses.loanManager as `0x${string}`,
       abi: LOAN_MANAGER_ABI,
       functionName: 'borrow',
-      args: [addresses.veNFT as `0x${string}`, BigInt(nftTokenId), parseUnits(String(loanAmount), 6)]
+      args: [nftContract as `0x${string}`, BigInt(nftTokenId), parseUnits(String(loanAmount), 6)]
     })
   }
 
@@ -153,6 +155,12 @@ const LoanCalculator: React.FC = () => {
               <div className="flex justify-between">
                 <span className="font-bold text-gray-500">Token ID</span>
                 <span className="font-black">#{nftTokenId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold text-gray-500">Contract</span>
+                <span className="font-black text-xs">
+                  {nftContract === addresses.veNFT ? 'veNFT' : 'RWA NFT'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="font-bold text-gray-500">Collateral Value</span>

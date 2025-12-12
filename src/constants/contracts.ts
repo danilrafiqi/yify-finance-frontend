@@ -5,6 +5,7 @@ import YIFYLendingPoolV2 from './abis/YIFYLendingPoolV2';
 import YIFYYieldDistributorV2 from './abis/YIFYYieldDistributorV2';
 import YIFYLens from './abis/YIFYLens';
 import MockVeNFT from './abis/MockVeNFT';
+import MockRWANFT from './abis/MockRWANFT';
 import SimpleNFTOracle from './abis/SimpleNFTOracle';
 
 export const LISK_SEPOLIA_CHAIN_ID = liskSepolia.id;
@@ -41,6 +42,7 @@ export const LOAN_MANAGER_ABI = YIFYLoanManagerV2;
 export const YIELD_DISTRIBUTOR_ABI = YIFYYieldDistributorV2;
 export const LENS_ABI = YIFYLens;
 export const VENFT_ABI = MockVeNFT;
+export const RWANFT_ABI = MockRWANFT;
 
 export const ERC20_ABI = erc20Abi;
 export const ERC721_ABI = erc721Abi;
