@@ -4,7 +4,7 @@ import { parseUnits, formatUnits, erc20Abi, parseEther } from 'viem'
 import { toast } from 'react-hot-toast'
 import { Settings, Zap, Coins, Database, Info, Loader2, DollarSign } from 'lucide-react'
 import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
-import { UNIVERSAL_YIELD_GENERATOR_ABI, MOCK_USDC_ABI, MOCK_NFT_ABI, ADMIN_CONTRACT_ADDRESSES } from '../../constants/adminContracts'
+import { UNIVERSAL_YIELD_GENERATOR_ABI, MOCK_USDC_ABI, MOCK_NFT_ABI, ADMIN_CONTRACT_ADDRESSES } from '../../constants/contracts'
 import { usePlatformStats } from '../../hooks/usePlatformStats'
 
 const AdminPage: React.FC = () => {

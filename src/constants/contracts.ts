@@ -6,6 +6,7 @@ import YIFYYieldDistributorV2 from './abis/YIFYYieldDistributorV2';
 import YIFYLens from './abis/YIFYLens';
 import MockVeNFT from './abis/MockVeNFT';
 import MockRWANFT from './abis/MockRWANFT';
+import MockUSDC from './abis/MockUSDC';
 import SimpleNFTOracle from './abis/SimpleNFTOracle';
 
 export const LISK_SEPOLIA_CHAIN_ID = liskSepolia.id;
@@ -36,15 +37,80 @@ export const CONTRACT_ADDRESSES = {
     }
 } as const;
 
-// Export ABIs without "as const" on property access to avoid TS1355
+// ===== YIFY Protocol ABIs =====
 export const LENDING_POOL_ABI = YIFYLendingPoolV2;
 export const LOAN_MANAGER_ABI = YIFYLoanManagerV2;
 export const YIELD_DISTRIBUTOR_ABI = YIFYYieldDistributorV2;
 export const LENS_ABI = YIFYLens;
 export const VENFT_ABI = MockVeNFT;
 export const RWANFT_ABI = MockRWANFT;
+export const SIMPLE_ORACLE_ABI = SimpleNFTOracle;
 
+// ===== Mock/Test Contract ABIs =====
+export const MOCK_USDC_ABI = MockUSDC;
+export const MOCK_VENFT_ABI = MockVeNFT;
+export const MOCK_RWANFT_ABI = MockRWANFT;
+export const MOCK_NFT_ABI = MockRWANFT; // Alias for backward compatibility
+
+// ===== Universal Yield Generator ABI =====
+export const UNIVERSAL_YIELD_GENERATOR_ABI = [
+    {
+        type: 'function',
+        name: 'generateGlobalYield',
+        inputs: [{ name: 'amountPerToken', type: 'uint256' }],
+        outputs: [],
+        stateMutability: 'nonpayable'
+    },
+    {
+        type: 'function',
+        name: 'simulateYield',
+        inputs: [
+            { name: 'asset', type: 'address' },
+            { name: 'tokenId', type: 'uint256' },
+            { name: 'amount', type: 'uint256' }
+        ],
+        outputs: [],
+        stateMutability: 'nonpayable'
+    },
+    {
+        type: 'function',
+        name: 'fundTreasury',
+        inputs: [{ name: 'amount', type: 'uint256' }],
+        outputs: [],
+        stateMutability: 'nonpayable'
+    },
+    {
+        type: 'function',
+        name: 'registeredTokens',
+        inputs: [{ name: 'index', type: 'uint256' }],
+        outputs: [
+            { name: 'asset', type: 'address' },
+            { name: 'tokenId', type: 'uint256' }
+        ],
+        stateMutability: 'view'
+    },
+    {
+        type: 'function',
+        name: 'claimable',
+        inputs: [
+            { name: 'asset', type: 'address' },
+            { name: 'tokenId', type: 'uint256' }
+        ],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view'
+    }
+] as const;
+
+// ===== Admin Contract Addresses =====
+export const ADMIN_CONTRACT_ADDRESSES = {
+    31337: { // Foundry local
+        yieldGenerator: '0xd75eC96794A60c6216E9bD222Ea5D6b50607C821', // From latest deployment
+    },
+    4202: { // Lisk Sepolia
+        yieldGenerator: '0x0000000000000000000000000000000000000000', // Not deployed on testnet
+    }
+} as const;
+
+// ===== Standard ABIs =====
 export const ERC20_ABI = erc20Abi;
 export const ERC721_ABI = erc721Abi;
-
-export const SIMPLE_ORACLE_ABI = SimpleNFTOracle;

@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAccount, useChainId, useSwitchChain, useWriteContract, useReadContracts, useReadContract, usePublicClient } from 'wagmi'
-import { ArrowRight, Plus, Wallet, Lock, DollarSign } from 'lucide-react'
-import { parseUnits, parseEther } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, VENFT_ABI, RWANFT_ABI, SIMPLE_ORACLE_ABI, ERC721_ABI } from '../../constants/contracts'
-import { toast } from 'react-hot-toast'
+import { useAccount, useChainId, useSwitchChain, useReadContracts, useReadContract } from 'wagmi'
+import { ArrowRight, Wallet, Lock } from 'lucide-react'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, VENFT_ABI, RWANFT_ABI } from '../../constants/contracts'
 
 // Simple NFT interface for wallet NFTs
 interface WalletNFT {
@@ -19,14 +17,8 @@ const CollateralSelection: React.FC = () => {
   const { address } = useAccount()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
-  const publicClient = usePublicClient()
-  const [mockPrice, setMockPrice] = useState<string>('5000') // Default 5000
-  const [nftType, setNftType] = useState<'veNFT' | 'rwaNFT'>('veNFT') // Default to veNFT
-
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
 
-  // Mint Mock NFT
-  const { writeContractAsync: writeMint, isPending: isMinting } = useWriteContract()
 
   // Fetch Total Supply for veNFT
   const { data: veNFTTotalSupply } = useReadContract({
@@ -176,108 +168,6 @@ const CollateralSelection: React.FC = () => {
 
   const [selectedNFT, setSelectedNFT] = useState<WalletNFT | null>(null)
 
-  const handleMintMockNFT = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet first')
-      return
-    }
-
-    if (!mockPrice || isNaN(Number(mockPrice))) {
-      toast.error('Please enter a valid price')
-      return
-    }
-
-    try {
-      const isVeNFT = nftType === 'veNFT'
-      const contractAddress = isVeNFT ? addresses.veNFT : addresses.rwaNFT
-      const contractABI = isVeNFT ? VENFT_ABI : RWANFT_ABI
-
-      // 1. Mint
-      toast.loading('Step 1/2: Minting NFT...', { id: 'mint-toast' })
-
-      let mintArgs: any[]
-      if (isVeNFT) {
-        mintArgs = [address, parseUnits('1000', 18), BigInt(63072000)] // power and duration for veNFT
-      } else {
-        mintArgs = [address] // only recipient for RWA NFT
-      }
-
-      const mintHash = await writeMint({
-        address: contractAddress as `0x${string}`,
-        abi: contractABI,
-        functionName: 'mint',
-        args: mintArgs as any
-      })
-
-      toast.loading('Waiting for confirmation...', { id: 'mint-toast' })
-      const receipt = await publicClient?.waitForTransactionReceipt({ hash: mintHash })
-
-      if (!receipt) throw new Error("Failed to get receipt")
-
-      // 2. Get the newly minted token ID by checking updated total supply
-      // This is more reliable than estimating from old totalSupply
-      let mintedId = 0n
-
-      try {
-        if (isVeNFT) {
-          // For veNFT, query totalSupply after mint to get the new token ID
-          const newTotalSupply = await publicClient?.readContract({
-            address: addresses.veNFT as `0x${string}`,
-            abi: VENFT_ABI,
-            functionName: 'totalSupply'
-          })
-          mintedId = newTotalSupply ? BigInt(Number(newTotalSupply) - 1) : 0n
-        } else {
-          // For RWA NFT, we need to find the highest token ID owned by user
-          // Since RWA NFT doesn't have totalSupply, we'll scan for the highest owned token
-          let highestId = 0n
-          for (let i = 0; i < 100; i++) { // Scan up to 100 tokens
-            try {
-              const owner = await publicClient?.readContract({
-                address: addresses.rwaNFT as `0x${string}`,
-                abi: ERC721_ABI,
-                functionName: 'ownerOf',
-                args: [BigInt(i)]
-              })
-              if (owner && owner.toLowerCase() === address.toLowerCase()) {
-                highestId = BigInt(i)
-              }
-            } catch {
-              // Token doesn't exist, continue
-              break
-            }
-          }
-          mintedId = highestId
-        }
-      } catch (error) {
-        console.error("Failed to determine minted token ID:", error)
-        // Fallback to estimation
-        mintedId = isVeNFT ?
-          (veNFTTotalSupply ? BigInt(Number(veNFTTotalSupply)) : 0n) :
-          0n
-      }
-
-      console.log("Minted ID:", mintedId.toString())
-
-      // 3. Set Price (only for supported contracts)
-      toast.loading(`Step 2/2: Setting Price to $${mockPrice}...`, { id: 'mint-toast' })
-
-      const priceInWei = parseEther(mockPrice) // Oracle uses 1e18 for price
-
-      await writeMint({
-        address: addresses.nftOracle as `0x${string}`,
-        abi: SIMPLE_ORACLE_ABI,
-        functionName: 'setTokenPrice',
-        args: [contractAddress, mintedId, priceInWei]
-      })
-
-      toast.success(`Success! ${nftType} #${mintedId} minted with value $${mockPrice}`, { id: 'mint-toast' })
-
-    } catch (error: any) {
-      console.error(error)
-      toast.error(error.shortMessage || 'Minting failed', { id: 'mint-toast' })
-    }
-  }
 
   const handleContinue = () => {
     if (selectedNFT) {

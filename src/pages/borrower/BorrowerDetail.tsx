@@ -77,6 +77,7 @@ const BorrowerDetail: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [currentSavedConfig, setCurrentSavedConfig] = useState<{ mode: 'repay' | 'reinvest', ratio?: number }>({ mode: 'repay' })
   const [chartRange, setChartRange] = useState<'1W' | '1M' | '3M' | 'ALL'>('1M')
+  const [chartType, setChartType] = useState<'yield' | 'debt' | 'cumulative'>('yield')
   const [isRepaying, setIsRepaying] = useState(false)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
 
@@ -89,7 +90,7 @@ const BorrowerDetail: React.FC = () => {
     query: { enabled: !!address && !!addresses.usdc && !!addresses.loanManager }
   })
 
-  // Fetch Real Yield Data from Ponder
+  // Fetch Real Yield Data from Ponder with Enhanced Chart Data
   const { data: yieldHistory } = useQuery({
     queryKey: ['yieldHistory', position?.nftContract, position?.tokenId.toString()], // Convert BigInt to string for serialization
     queryFn: async () => {
@@ -104,6 +105,9 @@ const BorrowerDetail: React.FC = () => {
               yieldEvents(where: { loanId: $loanId }, orderBy: timestamp, orderDirection: asc) {
                 id
                 totalAmount
+                repaidDebt
+                lenderYield
+                protocolFee
                 timestamp
               }
             }
@@ -115,10 +119,10 @@ const BorrowerDetail: React.FC = () => {
       return result.data?.yieldEvents || []
     },
     enabled: !!position && activeTab === 'history',
-    refetchInterval: 5000
+    refetchInterval: 3000 // More frequent updates for real-time chart
   })
 
-  const dividendData = useMemo(() => {
+  const chartData = useMemo(() => {
     if (!yieldHistory || yieldHistory.length === 0) return []
 
     let filteredEvents = [...yieldHistory]
@@ -132,14 +136,27 @@ const BorrowerDetail: React.FC = () => {
 
     filteredEvents = filteredEvents.filter((e: any) => Number(e.timestamp) >= cutoff)
 
-    let cumulative = 0
+    let cumulativeYield = 0
+    let cumulativeDebtRepaid = 0
+
     return filteredEvents.map((e: any) => {
-      const amount = parseFloat(formatUnits(BigInt(e.totalAmount), 6)) // Assuming USDC 6 decimals
-      cumulative += amount
+      const yieldAmount = parseFloat(formatUnits(BigInt(e.lenderYield), 6))
+      const debtRepaid = parseFloat(formatUnits(BigInt(e.repaidDebt), 6))
+      const protocolFee = parseFloat(formatUnits(BigInt(e.protocolFee), 6))
+      const totalAmount = parseFloat(formatUnits(BigInt(e.totalAmount), 6))
+
+      cumulativeYield += yieldAmount
+      cumulativeDebtRepaid += debtRepaid
+
       return {
         date: new Date(Number(e.timestamp) * 1000).toISOString(),
-        amount: amount,
-        cumulative: cumulative
+        timestamp: Number(e.timestamp),
+        yieldAmount,
+        debtRepaid,
+        protocolFee,
+        totalAmount,
+        cumulativeYield,
+        cumulativeDebtRepaid
       }
     })
   }, [yieldHistory, chartRange])
@@ -420,10 +437,22 @@ const BorrowerDetail: React.FC = () => {
                 <div className="card-neo bg-white border-2">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-black uppercase flex items-center gap-2">
-                      <BarChart3 /> Dividend Performance (Mock)
+                      <BarChart3 /> Yield Performance Analytics
                     </h3>
 
                     <div className="flex gap-2">
+                      {/* Chart Type Selector */}
+                      <select
+                        value={chartType}
+                        onChange={(e) => setChartType(e.target.value as 'yield' | 'debt' | 'cumulative')}
+                        className="px-3 py-1 text-sm font-bold bg-neo-blue text-white border-2 border-black"
+                      >
+                        <option value="yield">Yield Amount</option>
+                        <option value="debt">Debt Repaid</option>
+                        <option value="cumulative">Cumulative</option>
+                      </select>
+
+                      {/* Time Range Selector */}
                       {(['1W', '1M', '3M', 'ALL'] as const).map((range) => (
                         <button
                           key={range}
@@ -435,31 +464,88 @@ const BorrowerDetail: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                  {/* SVG Chart */}
-                  <div className="h-64 bg-gray-50 border-2 border-dashed border-black p-4 relative flex items-end justify-between gap-2">
-                    {dividendData.length > 0 ? (
-                      dividendData.map((data, index) => {
-                        const maxAmount = Math.max(...dividendData.map(d => d.amount));
-                        const heightPercentage = (data.amount / maxAmount) * 100;
-                        return (
-                          <div key={index} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-                            <div
-                              className="w-full bg-neo-green border-2 border-black hover:bg-neo-yellow transition-all"
-                              style={{ height: `${heightPercentage}%`, minHeight: '4px' }}
-                            ></div>
-                            <span className="text-xs font-bold mt-1 text-gray-500 absolute -bottom-6 transform -rotate-45 origin-top-left">
-                              {new Date(data.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </span>
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 bg-black text-white text-xs p-1 rounded whitespace-nowrap z-10 pointer-events-none">
-                              ${data.amount.toFixed(2)}
-                            </div>
-                          </div>
-                        )
-                      })
+                  {/* Enhanced Analytics Chart */}
+                  <div className="h-64 bg-gray-50 border-2 border-dashed border-black p-4 relative">
+                    {chartData.length > 0 ? (
+                      <div className="h-full flex flex-col">
+                        {/* Chart Area */}
+                        <div className="flex-1 flex items-end justify-between gap-1">
+                          {chartData.map((data, index) => {
+                            let value, color, label;
+
+                            switch (chartType) {
+                              case 'yield':
+                                value = data.yieldAmount;
+                                color = 'bg-neo-green';
+                                label = `Yield: $${data.yieldAmount.toFixed(2)}`;
+                                break;
+                              case 'debt':
+                                value = data.debtRepaid;
+                                color = 'bg-red-500';
+                                label = `Debt Repaid: $${data.debtRepaid.toFixed(2)}`;
+                                break;
+                              case 'cumulative':
+                                value = data.cumulativeYield;
+                                color = 'bg-neo-blue';
+                                label = `Total Yield: $${data.cumulativeYield.toFixed(2)}`;
+                                break;
+                              default:
+                                value = data.yieldAmount;
+                                color = 'bg-neo-green';
+                                label = `$${data.yieldAmount.toFixed(2)}`;
+                            }
+
+                            const maxValue = Math.max(...chartData.map(d => {
+                              switch (chartType) {
+                                case 'yield': return d.yieldAmount;
+                                case 'debt': return d.debtRepaid;
+                                case 'cumulative': return d.cumulativeYield;
+                                default: return d.yieldAmount;
+                              }
+                            }));
+
+                            const heightPercentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+
+                            return (
+                              <div key={index} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                                <div
+                                  className={`w-full ${color} border-2 border-black hover:opacity-80 transition-all`}
+                                  style={{ height: `${Math.max(heightPercentage, 2)}%`, minHeight: '4px' }}
+                                ></div>
+                                <span className="text-xs font-bold mt-1 text-gray-500 absolute -bottom-6 transform -rotate-45 origin-top-left">
+                                  {new Date(data.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                                {/* Enhanced Tooltip */}
+                                <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 bg-black text-white text-xs p-2 rounded whitespace-nowrap z-10 pointer-events-none">
+                                  <div className="font-bold">{label}</div>
+                                  <div>Fee: ${data.protocolFee.toFixed(2)}</div>
+                                  <div>{new Date(data.timestamp * 1000).toLocaleString()}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Chart Summary */}
+                        <div className="mt-4 pt-2 border-t border-gray-300 flex justify-between text-xs font-bold">
+                          <span>Total Events: {chartData.length}</span>
+                          <span>
+                            {chartType === 'cumulative'
+                              ? `Total Yield: $${chartData[chartData.length - 1]?.cumulativeYield.toFixed(2) || '0'}`
+                              : `Avg per Event: $${(chartData.reduce((sum, d) => {
+                                  switch (chartType) {
+                                    case 'yield': return sum + d.yieldAmount;
+                                    case 'debt': return sum + d.debtRepaid;
+                                    default: return sum + d.yieldAmount;
+                                  }
+                                }, 0) / chartData.length).toFixed(2)}`
+                            }
+                          </span>
+                        </div>
+                      </div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">
-                        No data available for this range
+                        No yield data available for this range
                       </div>
                     )}
                   </div>
@@ -470,26 +556,26 @@ const BorrowerDetail: React.FC = () => {
                     <thead className="bg-black text-white font-black uppercase">
                       <tr>
                         <th className="p-4 border-b-4 border-black">Date</th>
-                        <th className="p-4 border-b-4 border-black">Type</th>
-                        <th className="p-4 border-b-4 border-black">Amount</th>
-                        <th className="p-4 border-b-4 border-black">Cumulative</th>
+                        <th className="p-4 border-b-4 border-black">Yield Amount</th>
+                        <th className="p-4 border-b-4 border-black">Debt Repaid</th>
+                        <th className="p-4 border-b-4 border-black">Protocol Fee</th>
                         <th className="p-4 border-b-4 border-black">Status</th>
                       </tr>
                     </thead>
                     <tbody className="font-bold">
-                      {dividendData.length > 0 ? (
-                        dividendData.slice().reverse().map((data, index) => (
+                      {chartData.length > 0 ? (
+                        chartData.slice().reverse().map((data, index) => (
                           <tr key={index} className="border-b-2 border-gray-200 hover:bg-gray-50">
                             <td className="p-4">{new Date(data.date).toLocaleDateString()} {new Date(data.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td className="p-4">Dividend Payout</td>
-                            <td className="p-4 text-neo-green">+${data.amount.toFixed(2)}</td>
-                            <td className="p-4 font-mono">${data.cumulative.toFixed(2)}</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Confirmed</span></td>
+                            <td className="p-4 text-neo-green">+${data.yieldAmount.toFixed(2)}</td>
+                            <td className="p-4 text-red-600">-${data.debtRepaid.toFixed(2)}</td>
+                            <td className="p-4 text-gray-600">${data.protocolFee.toFixed(2)}</td>
+                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Processed</span></td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-gray-500">No history available</td>
+                          <td colSpan={5} className="p-4 text-center text-gray-500">No yield history available</td>
                         </tr>
                       )}
                     </tbody>

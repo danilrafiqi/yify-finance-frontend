@@ -12,7 +12,6 @@ const LoanCalculator: React.FC = () => {
   const tokenIdFromUrl = searchParams.get('tokenId')
   const contractFromUrl = searchParams.get('contract')
 
-  const { address } = useAccount() // Ensure we have account context if needed, though address not explicitly used here except for internal wagmi context likely
   const chainId = useChainId()
 
   const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES] || CONTRACT_ADDRESSES[LISK_SEPOLIA_CHAIN_ID]
