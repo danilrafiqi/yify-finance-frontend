@@ -7,7 +7,7 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import '@rainbow-me/rainbowkit/styles.css'
 
 import App from './App.tsx'
-import { config } from './config'
+import { config } from './config.ts'
 import './index.css'
 
 const queryClient = new QueryClient()
