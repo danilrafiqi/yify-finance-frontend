@@ -20,7 +20,6 @@ export const CONTRACT_ADDRESSES = {
         veNFT: '0xd7e8047d6434bCfaa028CddaB779AE3258D3c91d',
         rwaNFT: '0xb705C4BEF021C3Ffb6e37C87B1A6013Ca84EF614',
         nftOracle: '0x7616FBF5c3dA1B162a59C79642c052FBb10701c2',
-        // V2 placeholders for legacy chain
         loanManager: '0x0000000000000000000000000000000000000000',
         yieldDistributor: '0x0000000000000000000000000000000000000000',
         lens: '0x0000000000000000000000000000000000000000',
@@ -33,11 +32,10 @@ export const CONTRACT_ADDRESSES = {
         usdc: '0x1ed12f1B4816038d48f2A534d30871BEdef84F3a',
         veNFT: '0xC4a135E0494c2FAAD520386C662718A01dd439dB',
         rwaNFT: '0x36Bf8B967Ec47717dbA9cab7fced2f5859A31583',
-        nftOracle: '0x8e1c4653e4d109927bdfda6fA1060270ce5788dB', // SimpleOracle
+        nftOracle: '0x8e1c4653e4d109927bdfda6fA1060270ce5788dB',
     }
 } as const;
 
-// ===== YIFY Protocol ABIs =====
 export const LENDING_POOL_ABI = YIFYLendingPoolV2;
 export const LOAN_MANAGER_ABI = YIFYLoanManagerV2;
 export const YIELD_DISTRIBUTOR_ABI = YIFYYieldDistributorV2;
@@ -46,13 +44,11 @@ export const VENFT_ABI = MockVeNFT;
 export const RWANFT_ABI = MockRWANFT;
 export const SIMPLE_ORACLE_ABI = SimpleNFTOracle;
 
-// ===== Mock/Test Contract ABIs =====
 export const MOCK_USDC_ABI = MockUSDC;
 export const MOCK_VENFT_ABI = MockVeNFT;
 export const MOCK_RWANFT_ABI = MockRWANFT;
 export const MOCK_NFT_ABI = MockRWANFT; // Alias for backward compatibility
 
-// ===== Universal Yield Generator ABI =====
 export const UNIVERSAL_YIELD_GENERATOR_ABI = [
     {
         type: 'function',
@@ -101,16 +97,14 @@ export const UNIVERSAL_YIELD_GENERATOR_ABI = [
     }
 ] as const;
 
-// ===== Admin Contract Addresses =====
 export const ADMIN_CONTRACT_ADDRESSES = {
-    31337: { // Foundry local
-        yieldGenerator: '0xd75eC96794A60c6216E9bD222Ea5D6b50607C821', // From latest deployment
+    31337: {
+        yieldGenerator: '0xd75eC96794A60c6216E9bD222Ea5D6b50607C821',
     },
-    4202: { // Lisk Sepolia
-        yieldGenerator: '0x0000000000000000000000000000000000000000', // Not deployed on testnet
+    4202: {
+        yieldGenerator: '0x0000000000000000000000000000000000000000',
     }
 } as const;
 
-// ===== Standard ABIs =====
 export const ERC20_ABI = erc20Abi;
 export const ERC721_ABI = erc721Abi;

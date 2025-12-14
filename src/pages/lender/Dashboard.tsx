@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { Plus, Loader2, ArrowDownCircle, ArrowUpCircle, ExternalLink } from 'lucide-react'
 import { formatUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENDING_POOL_ABI } from '../../constants/contracts'
 import { useGetLenderPosition, useGetLenderTransactions } from '../../hooks/useLenderPosition'
 
 const LenderDashboard: React.FC = () => {
@@ -14,21 +14,15 @@ const LenderDashboard: React.FC = () => {
   // Fetch indexed data from Ponder
   const { data: lenderData, isLoading: isLoadingPonder, error: ponderError } = useGetLenderPosition(address)
   const lenderPosition = lenderData?.lenderPositions?.items?.[0]
-
   // Fetch transaction history
   const { data: transactionsData, isLoading: isLoadingTransactions } = useGetLenderTransactions(address, 20)
+  console.log("transactionsData", transactionsData);
   const transactions = transactionsData?.depositWithdrawEvents?.items || []
 
   // Read: User Shares (balanceOf) - Real-time from contract
   const { data: userShares, isLoading: isLoadingShares } = useReadContract({
     address: addresses.lendingPool as `0x${string}`,
-    abi: [{
-      "type": "function",
-      "name": "balanceOf",
-      "inputs": [{ "name": "account", "type": "address" }],
-      "outputs": [{ "name": "", "type": "uint256" }],
-      "stateMutability": "view"
-    }] as const,
+    abi: LENDING_POOL_ABI,
     functionName: 'balanceOf',
     args: [address!],
     query: { enabled: !!address }
@@ -37,13 +31,7 @@ const LenderDashboard: React.FC = () => {
   // Read: Share Value in Assets (convertToAssets) - Real-time from contract
   const { data: userAssets, isLoading: isLoadingAssets } = useReadContract({
     address: addresses.lendingPool as `0x${string}`,
-    abi: [{
-      "type": "function",
-      "name": "convertToAssets",
-      "inputs": [{ "name": "shares", "type": "uint256" }],
-      "outputs": [{ "name": "", "type": "uint256" }],
-      "stateMutability": "view"
-    }] as const,
+    abi: LENDING_POOL_ABI,
     functionName: 'convertToAssets',
     args: [userShares || 0n],
     query: { enabled: !!userShares }

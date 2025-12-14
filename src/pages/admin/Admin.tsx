@@ -3,7 +3,7 @@ import { useAccount, useWriteContract, useReadContract, useChainId, usePublicCli
 import { parseUnits, formatUnits, erc20Abi, parseEther } from 'viem'
 import { toast } from 'react-hot-toast'
 import { Settings, Zap, Coins, Database, Info, Loader2, DollarSign } from 'lucide-react'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, SIMPLE_ORACLE_ABI, YIELD_DISTRIBUTOR_ABI } from '../../constants/contracts'
 import { UNIVERSAL_YIELD_GENERATOR_ABI, MOCK_USDC_ABI, MOCK_NFT_ABI, ADMIN_CONTRACT_ADDRESSES } from '../../constants/contracts'
 import { usePlatformStats } from '../../hooks/usePlatformStats'
 
@@ -22,6 +22,8 @@ const AdminPage: React.FC = () => {
     const [specificYieldAmount, setSpecificYieldAmount] = useState('')
     const [specificNFTAddress, setSpecificNFTAddress] = useState<string>(addresses.veNFT)
     const [specificTokenId, setSpecificTokenId] = useState('')
+    const [processYieldNFT, setProcessYieldNFT] = useState<string>(addresses.veNFT)
+    const [processYieldTokenId, setProcessYieldTokenId] = useState('')
     const [mintUSDCAmount, setMintUSDCAmount] = useState('')
     const [nftPrice, setNftPrice] = useState('')
     const [nftType, setNftType] = useState<'veNFT' | 'rwaNFT'>('veNFT')
@@ -95,6 +97,34 @@ const AdminPage: React.FC = () => {
         } catch (error: any) {
             console.error(error)
             toast.error(error.shortMessage || 'Failed to simulate yield')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleProcessYield = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!processYieldTokenId) {
+            toast.error('Please provide a token ID to process')
+            return
+        }
+
+        try {
+            setIsLoading(true)
+            const tokenId = BigInt(processYieldTokenId)
+
+            const hash = await writeContractAsync({
+                address: addresses.yieldDistributor as `0x${string}`,
+                abi: YIELD_DISTRIBUTOR_ABI,
+                functionName: 'claimAndDistribute',
+                args: [processYieldNFT as `0x${string}`, tokenId]
+            })
+
+            toast.success(`Yield distribution triggered! Tx: ${hash.slice(0, 10)}...`)
+            setProcessYieldTokenId('')
+        } catch (error: any) {
+            console.error('Process Yield Error:', error)
+            toast.error(error.shortMessage || error.message || 'Failed to process yield')
         } finally {
             setIsLoading(false)
         }
@@ -295,7 +325,7 @@ const AdminPage: React.FC = () => {
                         </button>
                     </form>
 
-                    <form onSubmit={handleSpecificYield} className="space-y-4">
+            <form onSubmit={handleSpecificYield} className="space-y-4">
                         <h3 className="font-black uppercase">Simulate Specific Yield</h3>
                         <p className="text-sm font-bold">Add yield to a specific NFT</p>
                         <select
@@ -333,6 +363,35 @@ const AdminPage: React.FC = () => {
                             Simulate Specific Yield
                         </button>
                     </form>
+            <form onSubmit={handleProcessYield} className="space-y-4 pt-6 border-t-4 border-black">
+                <h3 className="font-black uppercase">Process Yield Distribution</h3>
+                <p className="text-sm font-bold">Trigger `claimAndDistribute` for an NFT</p>
+                <select
+                    value={processYieldNFT}
+                    onChange={(e) => setProcessYieldNFT(e.target.value)}
+                    className="input-neo"
+                    disabled={isLoading}
+                >
+                    <option value={addresses.veNFT}>veNFT</option>
+                    <option value={addresses.rwaNFT}>RWA NFT</option>
+                </select>
+                <input
+                    type="number"
+                    placeholder="Token ID"
+                    value={processYieldTokenId}
+                    onChange={(e) => setProcessYieldTokenId(e.target.value)}
+                    className="input-neo"
+                    disabled={isLoading}
+                />
+                <button
+                    type="submit"
+                    disabled={isLoading || !processYieldTokenId}
+                    className="btn-neo bg-black text-white w-full flex items-center justify-center gap-2"
+                >
+                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+                    Process Yield on Distributor
+                </button>
+            </form>
                 </div>
 
                 {/* NFT Operations */}

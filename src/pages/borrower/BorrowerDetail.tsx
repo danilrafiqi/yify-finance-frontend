@@ -7,9 +7,9 @@ import NFTCard from '../../components/common/NFTCard'
 import { ArrowLeft, Wallet, Settings, AlertTriangle, FileText, Vote, BarChart3, ArrowUpRight, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { motion } from 'framer-motion'
-import { useAccount, useReadContract, useWriteContract, useChainId } from 'wagmi'
+import { useAccount, useReadContract, useWriteContract, useChainId, usePublicClient } from 'wagmi'
 import { formatUnits, parseUnits, erc20Abi } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LOAN_MANAGER_ABI, LENS_ABI, SIMPLE_ORACLE_ABI } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LOAN_MANAGER_ABI, LENS_ABI, SIMPLE_ORACLE_ABI, YIELD_DISTRIBUTOR_ABI } from '../../constants/contracts'
 
 const BorrowerDetail: React.FC = () => {
   const { idnft } = useParams<{ idnft: string }>()
@@ -68,6 +68,8 @@ const BorrowerDetail: React.FC = () => {
   // Contract Interactions
   const { writeContractAsync: writeLoanManager } = useWriteContract()
   const { writeContractAsync: writeApprove } = useWriteContract()
+  const { writeContractAsync: writeDistributor } = useWriteContract()
+  const publicClient = usePublicClient()
 
   // States
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview')
@@ -80,6 +82,7 @@ const BorrowerDetail: React.FC = () => {
   const [chartType, setChartType] = useState<'yield' | 'debt' | 'cumulative'>('yield')
   const [isRepaying, setIsRepaying] = useState(false)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [claimingSimulationId, setClaimingSimulationId] = useState<string | null>(null)
 
   // USDC Allowance Check
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -91,7 +94,7 @@ const BorrowerDetail: React.FC = () => {
   })
 
   // Fetch Real Yield Data from Ponder with Enhanced Chart Data
-  const { data: yieldHistory } = useQuery({
+  const yieldHistoryQuery = useQuery({
     queryKey: ['yieldHistory', position?.nftContract, position?.tokenId.toString()], // Convert BigInt to string for serialization
     queryFn: async () => {
       if (!position) return []
@@ -102,13 +105,23 @@ const BorrowerDetail: React.FC = () => {
         body: JSON.stringify({
           query: `
             query GetYieldEvents($loanId: String!) {
-              yieldEvents(where: { loanId: $loanId }, orderBy: timestamp, orderDirection: asc) {
-                id
-                totalAmount
-                repaidDebt
-                lenderYield
-                protocolFee
-                timestamp
+              yieldEvents(
+                where: { loanId: $loanId }
+                orderBy: "timestamp"
+                orderDirection: "asc"
+                limit: 100
+              ) {
+                items {
+                  id
+                  loanId
+                  asset
+                  tokenId
+                  totalAmount
+                  repaidDebt
+                  lenderYield
+                  protocolFee
+                  timestamp
+                }
               }
             }
           `,
@@ -116,11 +129,38 @@ const BorrowerDetail: React.FC = () => {
         })
       })
       const result = await response.json()
-      return result.data?.yieldEvents || []
+      return result.data?.yieldEvents?.items || []
     },
     enabled: !!position && activeTab === 'history',
     refetchInterval: 3000 // More frequent updates for real-time chart
   })
+  const yieldHistory = yieldHistoryQuery.data || []
+
+  const handleClaimSimulation = async (eventRow: any) => {
+    if (!addresses.yieldDistributor) {
+      toast.error('Yield distributor not configured on this network')
+      return
+    }
+
+    try {
+      setClaimingSimulationId(eventRow.id)
+      const hash = await writeDistributor({
+        address: addresses.yieldDistributor as `0x${string}`,
+        abi: YIELD_DISTRIBUTOR_ABI,
+        functionName: 'claimAndDistribute',
+                args: [eventRow.asset as `0x${string}`, BigInt(eventRow.tokenId)],
+      })
+
+      await publicClient.waitForTransactionReceipt({ hash })
+      toast.success('Yield claimed & distributed')
+      await yieldHistoryQuery.refetch()
+    } catch (error: any) {
+      console.error('Yield Claim Error:', error)
+      toast.error(error.shortMessage || error.message || 'Failed to claim yield')
+    } finally {
+      setClaimingSimulationId(null)
+    }
+  }
 
   const chartData = useMemo(() => {
     if (!yieldHistory || yieldHistory.length === 0) return []
@@ -558,24 +598,51 @@ const BorrowerDetail: React.FC = () => {
                         <th className="p-4 border-b-4 border-black">Date</th>
                         <th className="p-4 border-b-4 border-black">Yield Amount</th>
                         <th className="p-4 border-b-4 border-black">Debt Repaid</th>
+                        <th className="p-4 border-b-4 border-black">Lender Yield</th>
                         <th className="p-4 border-b-4 border-black">Protocol Fee</th>
                         <th className="p-4 border-b-4 border-black">Status</th>
                       </tr>
                     </thead>
                     <tbody className="font-bold">
-                      {chartData.length > 0 ? (
-                        chartData.slice().reverse().map((data, index) => (
-                          <tr key={index} className="border-b-2 border-gray-200 hover:bg-gray-50">
-                            <td className="p-4">{new Date(data.date).toLocaleDateString()} {new Date(data.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td className="p-4 text-neo-green">+${data.yieldAmount.toFixed(2)}</td>
-                            <td className="p-4 text-red-600">-${data.debtRepaid.toFixed(2)}</td>
-                            <td className="p-4 text-gray-600">${data.protocolFee.toFixed(2)}</td>
-                            <td className="p-4"><span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Processed</span></td>
-                          </tr>
-                        ))
+                      {yieldHistory.length > 0 ? (
+                        yieldHistory.slice().reverse().map((event, index) => {
+                          const displayDate = new Date(Number(event.timestamp) * 1000)
+                          const yieldAmount = parseFloat(formatUnits(BigInt(event.totalAmount), 6))
+                          const debtRepaid = parseFloat(formatUnits(BigInt(event.repaidDebt), 6))
+                          const lenderYield = parseFloat(formatUnits(BigInt(event.lenderYield), 6))
+                          const protocolFee = parseFloat(formatUnits(BigInt(event.protocolFee), 6))
+                          const isPending = event.repaidDebt === '0' && event.lenderYield === '0' && event.protocolFee === '0'
+                          const isClaiming = claimingSimulationId === event.id
+
+                          return (
+                            <tr key={`${event.id}-${index}`} className="border-b-2 border-gray-200 hover:bg-gray-50">
+                              <td className="p-4">
+                                {displayDate.toLocaleDateString()} {displayDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="p-4 text-neo-green">+${yieldAmount.toFixed(2)}</td>
+                              <td className="p-4 text-red-600">-{Math.max(0, debtRepaid).toFixed(2)}</td>
+                              <td className="p-4 text-neo-blue">+${lenderYield.toFixed(2)}</td>
+                              <td className="p-4 text-gray-600">${protocolFee.toFixed(2)}</td>
+                              <td className="p-4">
+                                {isPending ? (
+                                  <button
+                                    type="button"
+                                    className="btn-neo bg-black text-white text-xs px-3 py-1 uppercase flex items-center gap-1"
+                                    onClick={() => handleClaimSimulation(event)}
+                                    disabled={isClaiming || !addresses.yieldDistributor}
+                                  >
+                                    {isClaiming ? <Loader2 className="animate-spin" size={14} /> : 'Claim'}
+                                  </button>
+                                ) : (
+                                  <span className="bg-neo-green text-black text-xs px-2 py-1 border border-black uppercase">Processed</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })
                       ) : (
                         <tr>
-                          <td colSpan={5} className="p-4 text-center text-gray-500">No yield history available</td>
+                          <td colSpan={6} className="p-4 text-center text-gray-500">No dividend history available</td>
                         </tr>
                       )}
                     </tbody>

@@ -4,7 +4,7 @@ import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, DollarSign } from 'lucide-react'
 import { formatUnits } from 'viem'
-import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID } from '../../constants/contracts'
+import { CONTRACT_ADDRESSES, LISK_SEPOLIA_CHAIN_ID, LENS_ABI } from '../../constants/contracts'
 
 const BorrowerDashboard: React.FC = () => {
   const { address } = useAccount()
@@ -14,30 +14,7 @@ const BorrowerDashboard: React.FC = () => {
   // Get User Positions from Lens
   const { data: userPositions } = useReadContract({
     address: addresses.lens as `0x${string}`,
-    abi: [{
-      "type": "function",
-      "name": "getUserLoans",
-      "inputs": [
-        { "name": "loanManager", "type": "address" },
-        { "name": "user", "type": "address" }
-      ],
-      "outputs": [
-        {
-          "components": [
-            { "name": "loanId", "type": "bytes32" },
-            { "name": "borrower", "type": "address" },
-            { "name": "nftContract", "type": "address" },
-            { "name": "tokenId", "type": "uint256" },
-            { "name": "totalBorrowed", "type": "uint256" },
-            { "name": "remainingDebt", "type": "uint256" },
-            { "name": "isActive", "type": "bool" }
-          ],
-          "name": "",
-          "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view"
-    }] as const,
+    abi: LENS_ABI,
     functionName: 'getUserLoans',
     args: [addresses.loanManager, address!],
     query: { enabled: !!address && !!addresses.loanManager }
@@ -69,7 +46,7 @@ const BorrowerDashboard: React.FC = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: `
-                query GetLoanTimestamp($id: ID!) {
+                query GetLoanTimestamp($id: String!) {
                   loan(id: $id) {
                     createdAt
                   }
@@ -159,7 +136,7 @@ const BorrowerDashboard: React.FC = () => {
                 timeToPayoff = 'Calculating...'
               }
             }
-
+            console.log("position", position);
             // Stats
             const debt = parseFloat(formatUnits(position.remainingDebt, 6))
             const initialLoan = parseFloat(formatUnits(position.totalBorrowed, 6))

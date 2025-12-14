@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from 'wagmi'
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useChainId } from 'wagmi'
 import { toast } from 'react-hot-toast'
 import { Clock, DollarSign } from 'lucide-react'
 import { parseUnits, formatUnits } from 'viem'
