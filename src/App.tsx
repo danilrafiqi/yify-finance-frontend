@@ -1,17 +1,17 @@
 import { Routes, Route } from 'react-router-dom'
-import Header from './components/common/Header'
-import NotificationSystem from './components/common/NotificationSystem'
+import Header from './shared/components/Header'
+import NotificationSystem from './shared/components/NotificationSystem'
 
 // Pages
-import LandingPage from './pages/LandingPage'
-import HelpFAQ from './pages/HelpFAQ'
-import BorrowerDashboard from './pages/borrower/Dashboard'
-import BorrowerDetail from './pages/borrower/BorrowerDetail'
-import CollateralSelection from './pages/borrower/CollateralSelection'
-import LoanCalculator from './pages/borrower/LoanCalculator'
-import LenderDashboard from './pages/lender/Dashboard'
-import LenderDeposit from './pages/lender/Deposit'
-import AdminPage from './pages/admin/Admin'
+import LandingPage from './modules/landing/pages/LandingPage'
+import HelpFAQ from './modules/help/pages/HelpFAQ'
+import BorrowerDashboard from './modules/borrow/pages/Dashboard'
+import BorrowerDetail from './modules/borrow/pages/BorrowerDetail'
+import CollateralSelection from './modules/borrow/pages/CollateralSelection'
+import LoanCalculator from './modules/borrow/pages/LoanCalculator'
+import LenderDashboard from './modules/lend/pages/Dashboard'
+import LenderDeposit from './modules/lend/pages/Deposit'
+import AdminPage from './modules/admin/pages/Admin'
 
 function AppContent() {
   return (
