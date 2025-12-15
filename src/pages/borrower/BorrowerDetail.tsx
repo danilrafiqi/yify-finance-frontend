@@ -151,7 +151,7 @@ const BorrowerDetail: React.FC = () => {
                 args: [eventRow.asset as `0x${string}`, BigInt(eventRow.tokenId)],
       })
 
-      await publicClient.waitForTransactionReceipt({ hash })
+      await publicClient?.waitForTransactionReceipt({ hash })
       toast.success('Yield claimed & distributed')
       await yieldHistoryQuery.refetch()
     } catch (error: any) {

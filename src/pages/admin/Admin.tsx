@@ -325,7 +325,7 @@ const AdminPage: React.FC = () => {
                         </button>
                     </form>
 
-            <form onSubmit={handleSpecificYield} className="space-y-4">
+                    <form onSubmit={handleSpecificYield} className="space-y-4">
                         <h3 className="font-black uppercase">Simulate Specific Yield</h3>
                         <p className="text-sm font-bold">Add yield to a specific NFT</p>
                         <select
@@ -390,8 +390,8 @@ const AdminPage: React.FC = () => {
                 >
                     {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
                     Process Yield on Distributor
-                </button>
-            </form>
+                        </button>
+                    </form>
                 </div>
 
                 {/* NFT Operations */}
