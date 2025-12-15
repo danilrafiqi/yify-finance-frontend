@@ -89,9 +89,16 @@ export function useDepositViewModel() {
     },
     onSuccess: () => {
       toast.success(`Successfully deposited ${amount.toLocaleString()} ${balanceSymbol}`)
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['lenderPosition', address] })
+      queryClient.invalidateQueries({ queryKey: ['lenderTransactions', address] })
+      queryClient.invalidateQueries({ queryKey: ['balanceOf', address] })
+      queryClient.invalidateQueries({ queryKey: ['convertToAssets'] })
       refetchBalance()
-      navigate('/lender/dashboard')
+      // Wait a bit for indexer to process the event
+      setTimeout(() => {
+        navigate('/lender/dashboard')
+      }, 2000)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Deposit failed')
