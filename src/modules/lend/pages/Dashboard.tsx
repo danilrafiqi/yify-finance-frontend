@@ -168,8 +168,14 @@ const LenderDashboard: React.FC = () => {
 
         <div className="card-neo bg-white">
           <h3 className="text-lg font-bold uppercase text-gray-500 mb-2">Current APR</h3>
-          <p className="text-4xl font-black text-neo-green">~{apr}%</p>
-          <p className="text-sm text-gray-500 mt-1">Estimated yield</p>
+          <p className="text-4xl font-black text-neo-green">
+            {apr > 0 ? `~${apr.toFixed(2)}%` : 'N/A'}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {apr > 0 
+              ? 'Real-time APR (calculated instantly)' 
+              : 'APR will appear after yield is claimed & distributed'}
+          </p>
         </div>
       </div>
 

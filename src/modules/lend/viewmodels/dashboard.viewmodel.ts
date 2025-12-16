@@ -63,8 +63,8 @@ export function useDashboardViewModel() {
           depositWithdrawEvents(
             where: $where
             orderBy: "timestamp"
-            orderDirection: "desc"
-            limit: 20
+            orderDirection: "asc"
+            limit: 100
           ) {
             items {
               id
@@ -210,7 +210,78 @@ export function useDashboardViewModel() {
     return 0
   }, [userShares, totalSupply, userAssets, lenderPosition])
 
-  const apr = 20.0 // Hardcoded for now
+  // Calculate APR real-time - SIMPLIFIED VERSION
+  // APR = Annual Percentage Rate = berapa persen return per tahun
+  // 
+  // Cara hitung sederhana:
+  // 1. Hitung yield percentage: (currentValue - deposit) / deposit
+  // 2. Proyeksikan ke tahun dengan asumsi yield rate konstan
+  // 
+  // Tapi untuk real-time, kita bisa hitung langsung dari yield yang sudah earned
+  // dan asumsikan itu adalah yield rate saat ini
+  const apr = useMemo(() => {
+    // Need lender position
+    if (!lenderPosition) return 0
+    
+    // Get net deposited amount
+    const netDeposited = totalDeposited - totalWithdrawn
+    
+    // Need positive deposit
+    if (netDeposited <= 0) return 0
+    
+    // Get current value (sudah include yield)
+    const currentVal = currentValue
+    
+    // If no yield yet
+    if (currentVal <= netDeposited) return 0
+    
+    // Calculate yield earned
+    const yieldEarned = currentVal - netDeposited
+    
+    // SIMPLIFIED APR: Hitung langsung dari yield percentage
+    // Asumsi: yield yang sudah earned ini adalah hasil dari rate tertentu
+    // Kita proyeksikan: kalau yield rate ini terus berlanjut, berapa APR-nya?
+    //
+    // Option 1: Hitung dari yield events (lebih akurat)
+    // Option 2: Asumsi yield rate konstan dari yield yang sudah earned
+    //
+    // Untuk real-time, kita gunakan Option 2 dengan asumsi:
+    // - Yield sudah earned = yield rate saat ini
+    // - Kita proyeksikan ke tahun dengan menggunakan waktu sejak deposit pertama
+    
+    // Get time since first deposit
+    let firstDepositTime = 0
+    if (transactionsData && transactionsData.length > 0) {
+      const deposits = transactionsData.filter(tx => tx.type === 'deposit')
+      if (deposits.length > 0) {
+        firstDepositTime = Number(deposits[0].timestamp)
+      }
+    }
+    
+    if (firstDepositTime === 0 && lenderPosition) {
+      firstDepositTime = Number(lenderPosition.updatedAt)
+    }
+    
+    // Calculate time elapsed in days
+    const now = Math.floor(Date.now() / 1000)
+    let daysElapsed = 0
+    
+    if (firstDepositTime > 0) {
+      const secondsElapsed = now - firstDepositTime
+      daysElapsed = secondsElapsed / (24 * 60 * 60)
+    }
+    
+    // Jika waktu terlalu singkat (< 1 jam), gunakan minimum 1 jam untuk proyeksi
+    // Ini mencegah APR yang terlalu tinggi karena waktu terlalu singkat
+    const minDays = 1 / 24 // 1 jam minimum
+    const actualDays = Math.max(daysElapsed, minDays)
+    
+    // APR Formula: (yieldEarned / deposit) × (365 hari / waktu yang sudah berlalu) × 100
+    // Ini memproyeksikan: "kalau yield rate ini terus berlanjut selama 1 tahun, berapa APR-nya?"
+    const apr = (yieldEarned / netDeposited) * (365 / actualDays) * 100
+    
+    return Math.min(apr, 1000) // Cap at 1000%
+  }, [currentValue, lenderPosition, transactionsData, totalDeposited, totalWithdrawn])
 
   const isLoading = isLoadingShares || isLoadingAssets || isLoadingPonder
 
