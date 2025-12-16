@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { LenderService } from '../services/lender.service'
 import { useContractAddresses } from '../../../shared/hooks/use-contract-addresses'
-import { LENDING_POOL_ABI } from '../../../constants/contracts'
+import { LENDING_POOL_ABI, ERC20_ABI } from '../../../constants/contracts'
 import { query } from '../../../shared/lib/graphql'
 
 export function useDashboardViewModel() {
@@ -122,6 +122,15 @@ export function useDashboardViewModel() {
     query: { enabled: true }
   })
 
+  // Read USDC balance of pool directly (this is what's actually available for withdrawal)
+  const { data: poolBalance } = useReadContract({
+    address: addresses.usdc as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [addresses.lendingPool as `0x${string}`],
+    query: { enabled: !!addresses.lendingPool && !!addresses.usdc }
+  })
+
   // Read totalSupply (total shares) for yield calculation
   const { data: totalSupply } = useReadContract({
     address: addresses.lendingPool as `0x${string}`,
@@ -131,11 +140,20 @@ export function useDashboardViewModel() {
   })
 
   // Calculate available liquidity for withdrawal
+  // After contract fix: available liquidity = pool USDC balance (not totalAssets - totalBorrowed)
+  // Because convertToAssets now uses totalDeposited + totalYield (no totalBorrowed)
   const availableLiquidity = useMemo(() => {
-    if (!totalAssets || !totalBorrowed) return 0
-    const available = totalAssets - totalBorrowed
-    return parseFloat(formatUnits(available > 0n ? available : 0n, 6))
-  }, [totalAssets, totalBorrowed])
+    // Use pool balance directly - this is what's actually available for withdrawal
+    if (poolBalance) {
+      return parseFloat(formatUnits(poolBalance as bigint, 6))
+    }
+    // Fallback to totalAssets - totalBorrowed if poolBalance not available
+    if (totalAssets && totalBorrowed) {
+      const available = totalAssets - totalBorrowed
+      return parseFloat(formatUnits(available > 0n ? available : 0n, 6))
+    }
+    return 0
+  }, [poolBalance, totalAssets, totalBorrowed])
 
   // Computed values
   const currentValue = useMemo(() => {
