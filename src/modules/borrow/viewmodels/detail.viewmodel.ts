@@ -8,7 +8,7 @@ import { toast } from 'react-hot-toast'
 import { calculateRepaymentProgress } from '../models/loan'
 import { LoanService } from '../services/loan.service'
 import { useContractAddresses } from '../../../shared/hooks/use-contract-addresses'
-import { LOAN_MANAGER_ABI, LENS_ABI, SIMPLE_ORACLE_ABI, YIELD_DISTRIBUTOR_ABI } from '../../../constants/contracts'
+import { LOAN_MANAGER_ABI, LENS_ABI, SIMPLE_ORACLE_ABI, YIELD_DISTRIBUTOR_ABI, UNIVERSAL_YIELD_GENERATOR_ABI, ADMIN_CONTRACT_ADDRESSES } from '../../../constants/contracts'
 import { query } from '../../../shared/lib/graphql'
 
 export interface YieldEvent {
@@ -214,11 +214,39 @@ export function useDetailViewModel(tokenId?: string) {
     }
   })
 
+  // Get yield generator address
+  const chainId = publicClient?.chain?.id || 31337
+  const adminAddresses = ADMIN_CONTRACT_ADDRESSES[chainId as keyof typeof ADMIN_CONTRACT_ADDRESSES]
+  const yieldGeneratorAddress = adminAddresses?.yieldGenerator
+
   // Claim yield
   const claimYieldMutation = useMutation({
     mutationFn: async (event: YieldEvent) => {
       if (!addresses.yieldDistributor) {
         throw new Error('Yield distributor not configured')
+      }
+
+      // Check if there's yield to claim
+      if (yieldGeneratorAddress && publicClient) {
+        try {
+          const claimable = await publicClient.readContract({
+            address: yieldGeneratorAddress as `0x${string}`,
+            abi: UNIVERSAL_YIELD_GENERATOR_ABI,
+            functionName: 'claimable',
+            args: [event.asset as `0x${string}`, BigInt(event.tokenId)]
+          })
+          
+          if (claimable === 0n) {
+            throw new Error('No yield available to claim')
+          }
+        } catch (error: any) {
+          // If we can't read claimable, still try to claim (might be a view function issue)
+          if (error.message && !error.message.includes('No yield')) {
+            console.warn('Could not check claimable yield:', error)
+          } else {
+            throw error
+          }
+        }
       }
 
       const hash = await writeContractAsync({
@@ -236,7 +264,12 @@ export function useDetailViewModel(tokenId?: string) {
       refetchHistory()
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to claim yield')
+      // Provide more helpful error messages
+      if (error.message.includes('Internal JSON-RPC error') || error.message.includes('execution reverted')) {
+        toast.error('No yield available to claim or transaction failed. Please check if yield has been generated.')
+      } else {
+        toast.error(error.message || 'Failed to claim yield')
+      }
     }
   })
 

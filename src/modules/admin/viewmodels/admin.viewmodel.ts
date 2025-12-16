@@ -52,18 +52,39 @@ export function useAdminViewModel() {
   // Global Yield Mutation
   const globalYieldMutation = useMutation({
     mutationFn: async (amount: string) => {
-      if (!adminAddresses?.yieldGenerator) {
+      if (!adminAddresses?.yieldGenerator || !publicClient) {
         throw new Error('Yield generator not available')
+      }
+
+      const amountBigInt = parseUnits(amount, 6)
+      if (amountBigInt === 0n) {
+        throw new Error('Amount must be greater than 0')
+      }
+
+      // Check if there are registered tokens first
+      try {
+        // Try to read registeredTokens length by checking index 0
+        // If it fails, there might be no tokens registered
+        await publicClient.readContract({
+          address: adminAddresses.yieldGenerator as `0x${string}`,
+          abi: UNIVERSAL_YIELD_GENERATOR_ABI,
+          functionName: 'registeredTokens',
+          args: [0n]
+        })
+      } catch (error) {
+        // If reading fails, might be no tokens - but continue anyway
+        console.warn('Could not read registered tokens, continuing...', error)
       }
 
       const hash = await writeContractAsync({
         address: adminAddresses.yieldGenerator as `0x${string}`,
         abi: UNIVERSAL_YIELD_GENERATOR_ABI,
         functionName: 'generateGlobalYield',
-        args: [parseUnits(amount, 6)]
+        args: [amountBigInt],
+        gas: 10000000n // Increase gas limit significantly for large loops
       })
 
-      await publicClient?.waitForTransactionReceipt({ hash })
+      await publicClient.waitForTransactionReceipt({ hash })
       return hash
     },
     onSuccess: () => {
@@ -72,8 +93,13 @@ export function useAdminViewModel() {
       queryClient.invalidateQueries({ queryKey: ['platformStats'] })
     },
     onError: (error: Error) => {
+      console.error('Global yield error:', error)
       if (error.message?.includes('Ownable') || error.message?.includes('caller is not the owner')) {
         toast.error('Only contract owner can simulate global yield')
+      } else if (error.message?.includes('gas') || error.message?.includes('out of gas')) {
+        toast.error('Transaction failed: Gas limit exceeded. Try with fewer registered tokens or smaller amount.')
+      } else if (error.message?.includes('Internal JSON-RPC error')) {
+        toast.error('Transaction failed: Contract reverted. Check if there are registered tokens or try smaller amount.')
       } else {
         toast.error(error.message || 'Failed to simulate yield')
       }

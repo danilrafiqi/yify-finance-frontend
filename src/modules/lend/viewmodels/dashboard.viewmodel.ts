@@ -122,6 +122,14 @@ export function useDashboardViewModel() {
     query: { enabled: true }
   })
 
+  // Read totalSupply (total shares) for yield calculation
+  const { data: totalSupply } = useReadContract({
+    address: addresses.lendingPool as `0x${string}`,
+    abi: LENDING_POOL_ABI,
+    functionName: 'totalSupply',
+    query: { enabled: true }
+  })
+
   // Calculate available liquidity for withdrawal
   const availableLiquidity = useMemo(() => {
     if (!totalAssets || !totalBorrowed) return 0
@@ -147,19 +155,42 @@ export function useDashboardViewModel() {
   }, [lenderPosition])
 
   const yieldEarned = useMemo(() => {
-    // Calculate yield earned using currentValue from contract (which includes yield)
-    // instead of currentBalance from indexer (which only tracks deposit/withdraw)
-    if (!lenderPosition || !userAssets) return 0
+    // Calculate yield earned based on user's share of totalYield
+    // Formula: yieldEarned = (userShares / totalSupply) × totalYield
+    // After contract fix: totalAssetsForShares = totalDeposited + totalYield (no totalBorrowed)
+    // So: totalYield = totalAssetsForShares - totalDeposited
+    if (!userShares || !totalSupply || !userAssets) return 0
     
-    const netDeposited = lenderPosition.totalDeposited - lenderPosition.totalWithdrawn
-    const currentValueBigInt = userAssets
+    const totalSupplyBigInt = totalSupply as bigint
+    const userAssetsBigInt = userAssets as bigint
+    const userSharesBigInt = userShares as bigint
     
-    if (currentValueBigInt > netDeposited) {
-      const yieldBigInt = currentValueBigInt - netDeposited
-      return parseFloat(formatUnits(yieldBigInt, 6))
+    if (totalSupplyBigInt === 0n || userSharesBigInt === 0n) return 0
+    
+    // Calculate totalAssetsForShares from userAssets and userShares
+    // totalAssetsForShares = (userAssets × totalSupply) / userShares
+    const totalAssetsForShares = (userAssetsBigInt * totalSupplyBigInt) / userSharesBigInt
+    
+    // Use indexer data for totalDeposited (net deposited = totalDeposited - totalWithdrawn)
+    if (lenderPosition) {
+      const netDeposited = lenderPosition.totalDeposited - lenderPosition.totalWithdrawn
+      const netDepositedBigInt = netDeposited
+      
+      // After contract fix: totalAssetsForShares = totalDeposited + totalYield
+      // So: totalYield = totalAssetsForShares - totalDeposited (NO totalBorrowed!)
+      const totalYieldBigInt = totalAssetsForShares > netDepositedBigInt
+        ? totalAssetsForShares - netDepositedBigInt
+        : 0n
+      
+      if (totalYieldBigInt <= 0n) return 0
+      
+      // Calculate user's proportional share of total yield
+      const userYieldBigInt = (userSharesBigInt * totalYieldBigInt) / totalSupplyBigInt
+      return parseFloat(formatUnits(userYieldBigInt, 6))
     }
+    
     return 0
-  }, [lenderPosition, userAssets])
+  }, [userShares, totalSupply, userAssets, lenderPosition])
 
   const apr = 20.0 // Hardcoded for now
 
