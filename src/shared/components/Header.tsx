@@ -45,7 +45,7 @@ const Header: React.FC = () => {
             >
               Help
             </Link>
-            {isLocalChain && (
+            {(
               <Link
                 to="/admin"
                 className={`font-bold uppercase tracking-wide hover:text-neo-red transition-colors ${isActive('/admin') ? 'underline decoration-4 decoration-neo-red' : ''}`}
